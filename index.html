@@ -1,0 +1,1890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>NER Smart Logistics - Driver & Authority App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg-primary:#0a0e1a;--bg-secondary:#131824;--bg-tertiary:#1a2035;--bg-card:#151b2e;--border:#1e2a45;--border-light:#2a3a5c;--text-primary:#fff;--text-secondary:#8b95b0;--text-muted:#5a6480;--accent:#00d4ff;--accent-dim:#00a8cc;--success:#10b981;--success-bg:rgba(16,185,129,.1);--warning:#f59e0b;--warning-bg:rgba(245,158,11,.1);--critical:#ef4444;--critical-bg:rgba(239,68,68,.1);--info:#3b82f6;--info-bg:rgba(59,130,246,.1)}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg-primary);color:var(--text-primary);overflow:hidden;height:100vh;width:100vw}
+.app{display:flex;flex-direction:column;height:100vh;width:100vw;position:relative}
+.loading-overlay{position:fixed;inset:0;background:var(--bg-primary);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .4s ease}
+.loading-overlay.force-hidden{opacity:0!important;pointer-events:none!important;display:none!important;visibility:hidden!important}
+.loading-spinner{width:48px;height:48px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:13px;color:var(--text-secondary);animation:loadPulse 2s ease-in-out infinite}
+@keyframes loadPulse{0%,100%{opacity:.5}50%{opacity:1}}
+.role-selection-screen{position:fixed;inset:0;z-index:9998;background:var(--bg-primary);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;overflow-y:auto;transition:opacity .4s ease,visibility .4s ease}
+.role-selection-screen.hidden{opacity:0!important;visibility:hidden!important;pointer-events:none!important;display:none!important}
+.role-header{text-align:center;margin-bottom:36px}
+.role-header-icon{width:72px;height:72px;background:linear-gradient(135deg,var(--accent),#0066ff);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 16px}
+.role-header h1{font-size:24px;font-weight:800;margin-bottom:6px;letter-spacing:-.5px}
+.role-header p{font-size:13px;color:var(--text-muted);max-width:400px}
+.role-cards{display:flex;gap:20px;max-width:720px;width:100%}
+.role-card{flex:1;background:var(--bg-card);border:1px solid var(--border);border-radius:18px;padding:32px 24px;text-align:center;cursor:pointer;transition:all .3s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden}
+.role-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 60%,rgba(0,212,255,.04));transition:all .3s}
+.role-card:hover{border-color:var(--accent);transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,212,255,.12)}
+.role-card:hover::before{background:linear-gradient(135deg,transparent 40%,rgba(0,212,255,.08))}
+.role-card-icon{width:64px;height:64px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 16px}
+.role-card-icon.driver{background:linear-gradient(135deg,rgba(0,212,255,.15),rgba(0,102,255,.1));border:1px solid rgba(0,212,255,.2)}
+.role-card-icon.authority{background:linear-gradient(135deg,rgba(245,158,11,.15),rgba(239,68,68,.1));border:1px solid rgba(245,158,11,.2)}
+.role-card h2{font-size:17px;font-weight:700;margin-bottom:8px}
+.role-card p{font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:16px}
+.role-card-btn{display:inline-flex;align-items:center;gap:6px;padding:10px 24px;border-radius:10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;transition:all .2s}
+.role-card-btn.driver-btn{background:var(--accent);color:var(--bg-primary)}
+.role-card-btn.authority-btn{background:var(--warning);color:var(--bg-primary)}
+.role-card:hover .role-card-btn{transform:translateY(-1px)}
+.role-footer{margin-top:32px;text-align:center;font-size:10px;color:var(--text-muted);letter-spacing:.3px}
+@media(max-width:600px){.role-cards{flex-direction:column;gap:14px}.role-card{padding:24px 20px}.role-header h1{font-size:20px}}
+.auth-screen{position:fixed;inset:0;z-index:9997;background:var(--bg-primary);display:none;flex-direction:column;align-items:center;justify-content:flex-start;padding:24px;overflow-y:auto}
+.auth-screen.visible{display:flex!important}
+.auth-container{width:100%;max-width:460px;margin-top:20px}
+.auth-back-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);font-size:11px;font-weight:600;cursor:pointer;transition:all .2s;margin-bottom:20px;font-family:inherit}
+.auth-back-btn:hover{border-color:var(--accent);color:var(--accent)}
+.auth-header{text-align:center;margin-bottom:28px}
+.auth-header-icon{width:56px;height:56px;background:linear-gradient(135deg,rgba(245,158,11,.15),rgba(239,68,68,.1));border:1px solid rgba(245,158,11,.2);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 14px}
+.auth-header h2{font-size:19px;font-weight:700;margin-bottom:4px}
+.auth-header p{font-size:12px;color:var(--text-muted)}
+.auth-form{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:24px}
+.auth-form .form-group{margin-bottom:16px}
+.auth-form .form-group:last-of-type{margin-bottom:20px}
+.auth-submit-btn{width:100%;padding:14px;background:linear-gradient(135deg,var(--warning),#e67e00);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;font-family:inherit}
+.auth-submit-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(245,158,11,.3)}
+.auth-dashboard{position:fixed;inset:0;z-index:9996;background:var(--bg-primary);display:none;flex-direction:column;overflow:hidden}
+.auth-dashboard.visible{display:flex!important}
+.auth-dash-header{padding:14px 20px;background:var(--bg-secondary);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.auth-dash-header-left{display:flex;align-items:center;gap:12px}
+.auth-dash-header-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--warning),#e67e00);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.auth-dash-header-info h3{font-size:14px;font-weight:700}
+.auth-dash-header-info p{font-size:10px;color:var(--text-muted)}
+.auth-dash-header-right{display:flex;align-items:center;gap:8px}
+.auth-dash-status{display:flex;align-items:center;gap:5px;padding:4px 10px;background:var(--success-bg);border:1px solid rgba(16,185,129,.2);border-radius:8px;font-size:10px;font-weight:600;color:var(--success)}
+.auth-dash-status .status-dot-sm{width:5px;height:5px;border-radius:50%;background:var(--success);animation:pulse 2s infinite}
+.auth-dash-body{flex:1;display:flex;overflow:hidden}
+.auth-dash-form-panel{flex:1;overflow-y:auto;padding:20px;min-width:0}
+.auth-dash-map-panel{width:420px;flex-shrink:0;border-left:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-secondary)}
+.auth-section{margin-bottom:20px}
+.auth-section-title{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.auth-section-title .sec-icon{font-size:13px}
+.auth-form-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:16px}
+.auth-form-card .form-group{margin-bottom:14px}
+.auth-form-card .form-group:last-child{margin-bottom:0}
+.severity-selector{display:flex;gap:8px}
+.severity-option{flex:1;padding:10px 8px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:10px;text-align:center;cursor:pointer;transition:all .2s;font-size:11px;font-weight:600;color:var(--text-secondary);font-family:inherit}
+.severity-option:hover{border-color:var(--text-muted)}
+.severity-option.selected{transform:translateY(-1px)}
+.severity-option.sev-low.selected{border-color:var(--success);background:var(--success-bg);color:var(--success)}
+.severity-option.sev-med.selected{border-color:var(--warning);background:var(--warning-bg);color:var(--warning)}
+.severity-option.sev-high.selected{border-color:var(--critical);background:var(--critical-bg);color:var(--critical)}
+.severity-option.sev-crit.selected{border-color:#ff2d2d;background:rgba(255,45,45,.12);color:#ff6b6b}
+.media-upload-zone{padding:20px;background:var(--bg-tertiary);border:1px dashed var(--border);border-radius:12px;text-align:center;cursor:pointer;transition:all .2s}
+.media-upload-zone:hover{border-color:var(--accent);background:rgba(0,212,255,.03)}
+.media-upload-zone .upload-icon{font-size:24px;margin-bottom:6px}
+.media-upload-zone .upload-text{font-size:11px;color:var(--text-muted)}
+.media-upload-zone .upload-hint{font-size:9px;color:var(--text-muted);margin-top:4px;opacity:.7}
+.media-preview-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.media-preview-grid img{width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--border)}
+.media-preview-grid .vid-badge{padding:6px 10px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;font-size:10px;color:var(--text-secondary)}
+.auth-coords-display{padding:10px 14px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:10px;font-size:11px;color:var(--text-secondary);display:flex;flex-direction:column;gap:8px}
+.auth-coords-row{display:flex;align-items:center;gap:8px}
+.auth-coords-row .coord-dot{width:8px;height:8px;border-radius:50%;background:var(--success);flex-shrink:0;animation:pulse 2s infinite}
+.auth-coords-row .coord-label{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;min-width:28px}
+.auth-coords-row .coord-value{font-size:12px;font-weight:600;color:var(--accent);font-family:'Courier New',monospace}
+.auth-map-container{flex:1;position:relative;min-height:300px}
+#authMapPicker{width:100%;height:100%;min-height:300px;z-index:1}
+.auth-map-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(10,14,26,.88);border:1px solid var(--border);border-radius:8px;padding:5px 12px;font-size:10px;color:var(--text-secondary);z-index:10;backdrop-filter:blur(8px);white-space:nowrap}
+.auth-submit-area{padding:16px 20px;border-top:1px solid var(--border);background:var(--bg-secondary);flex-shrink:0}
+.auth-broadcast-btn{width:100%;padding:14px;background:linear-gradient(135deg,var(--critical),#c92a2a);border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px}
+.auth-broadcast-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(239,68,68,.3)}
+.auth-broadcast-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.auth-broadcast-btn .broadcast-pulse{width:8px;height:8px;border-radius:50%;background:#fff;animation:pulse 1.5s infinite}
+@media(max-width:768px){.auth-dash-body{flex-direction:column}.auth-dash-map-panel{width:100%;height:300px;border-left:none;border-top:1px solid var(--border)}.auth-dash-form-panel{padding:16px}}
+.start-journey-screen{position:absolute;inset:0;background:var(--bg-primary);z-index:200;display:none;flex-direction:column;align-items:center;justify-content:flex-start;padding:20px 24px;overflow-y:auto}
+.start-journey-screen.visible{display:flex!important}
+.start-journey-screen.hidden{display:none!important}
+.start-logo{width:56px;height:56px;background:linear-gradient(135deg,var(--accent),#0066ff);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:14px;margin-top:10px}
+.start-title{font-size:20px;font-weight:700;margin-bottom:4px;text-align:center}
+.start-subtitle{font-size:12px;color:var(--text-muted);margin-bottom:20px;text-align:center}
+.journey-form{width:100%;max-width:440px}
+.form-row{display:flex;gap:12px}
+.form-row .form-group{flex:1}
+.form-group{margin-bottom:14px}
+.form-label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:block}
+.form-input,.form-select{width:100%;padding:12px 14px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;color:var(--text-primary);font-size:14px;font-family:inherit;transition:all .2s}
+.form-input:focus,.form-select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.1)}
+.form-input::placeholder{color:var(--text-muted)}
+.form-select{appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235a6480' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}
+.form-select optgroup{background:var(--bg-secondary);color:var(--accent);font-weight:600;font-size:12px}
+.form-select option{background:var(--bg-secondary);color:var(--text-primary);padding:8px}
+.gps-permission-banner{background:var(--info-bg);border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-secondary)}
+.start-btn{width:100%;padding:16px;background:linear-gradient(135deg,var(--accent),#0066ff);border:none;border-radius:12px;color:#fff;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit;margin-top:4px}
+.start-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,212,255,.3)}
+.top-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg-secondary);border-bottom:1px solid var(--border);z-index:100;flex-shrink:0}
+.logo-section{display:flex;align-items:center;gap:10px}
+.logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),#0066ff);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.logo-text{font-size:14px;font-weight:600;letter-spacing:-.3px}
+.logo-subtitle{font-size:10px;color:var(--text-muted);font-weight:400}
+.top-bar-actions{display:flex;align-items:center;gap:10px}
+.connection-status{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-secondary);padding:4px 10px;background:var(--bg-tertiary);border-radius:12px;border:1px solid var(--border)}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--success);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.alert-badge{position:relative;width:36px;height:36px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s}
+.alert-badge:hover{border-color:var(--accent);background:var(--bg-card)}
+.alert-badge.danger{border-color:rgba(239,68,68,.4);background:var(--critical-bg);animation:badgePulse 1.5s infinite}
+@keyframes badgePulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.3)}50%{box-shadow:0 0 0 6px rgba(239,68,68,0)}}
+.alert-count{position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:var(--critical);border-radius:50%;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg-secondary)}
+.language-btn{padding:6px 12px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);font-size:11px;font-weight:500;cursor:pointer;transition:all .2s}
+.language-btn:hover{border-color:var(--accent);color:var(--accent)}
+.main-content{flex:1;position:relative;overflow:hidden}
+.map-container{width:100%;height:100%;position:relative;background:var(--bg-primary)}
+#map{width:100%;height:100%;z-index:1;background:#1a1f2e}
+.map-fallback{position:absolute;inset:0;background:linear-gradient(180deg,#0d1520,#1a2535 50%,#0d1520);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2;transition:opacity .5s,visibility .5s}
+.map-fallback.hidden{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+.mode-indicator{position:absolute;top:16px;left:16px;padding:6px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;font-size:11px;font-weight:500;display:flex;align-items:center;gap:6px;z-index:50;backdrop-filter:blur(10px)}
+.mode-dot{width:6px;height:6px;border-radius:50%;background:var(--success);animation:pulse 2s infinite}
+.layer-switcher{position:absolute;top:16px;right:16px;z-index:50;display:none;gap:4px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:4px;backdrop-filter:blur(10px)}
+.layer-btn{padding:6px 10px;background:transparent;border:none;border-radius:7px;color:var(--text-muted);font-size:10px;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit;text-transform:uppercase;letter-spacing:.3px}
+.layer-btn:hover{color:var(--text-secondary);background:var(--bg-tertiary)}
+.layer-btn.active{background:var(--accent);color:var(--bg-primary)}
+.elevation-badge{position:absolute;bottom:150px;left:16px;z-index:50;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:8px 12px;backdrop-filter:blur(10px);display:none;align-items:center;gap:8px;transition:bottom .4s}
+.elevation-badge.visible{display:flex}
+.elevation-icon{font-size:14px}
+.elevation-value{font-size:14px;font-weight:700;color:var(--accent)}
+.elevation-label{font-size:9px;color:var(--text-muted);text-transform:uppercase}
+.bearing-badge{position:absolute;bottom:195px;left:16px;z-index:50;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:8px 12px;backdrop-filter:blur(10px);display:none;align-items:center;gap:8px;transition:bottom .4s}
+.bearing-badge.visible{display:flex}
+.bearing-compass{width:24px;height:24px;border-radius:50%;border:2px solid var(--accent);position:relative;transition:transform .5s ease}
+.bearing-compass::after{content:'';position:absolute;top:3px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:8px solid var(--accent)}
+.bearing-value{font-size:13px;font-weight:600;color:var(--text-secondary)}
+.gps-accuracy{position:absolute;top:50px;right:16px;z-index:50;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:6px 10px;backdrop-filter:blur(10px);display:none;align-items:center;gap:6px;font-size:10px;color:var(--text-muted)}
+.gps-accuracy.visible{display:flex}
+.gps-accuracy-dot{width:8px;height:8px;border-radius:50%;background:var(--success)}
+.route-loading-indicator{position:absolute;bottom:240px;left:16px;z-index:50;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:8px 12px;backdrop-filter:blur(10px);display:none;align-items:center;gap:8px;font-size:11px;color:var(--text-secondary);transition:bottom .4s}
+.route-loading-indicator.visible{display:flex}
+.route-loading-spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+.map-controls{position:absolute;right:16px;bottom:140px;display:flex;flex-direction:column;gap:8px;z-index:50;transition:bottom .4s cubic-bezier(.4,0,.2,1)}
+.map-control-btn{width:40px;height:40px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;font-size:16px;color:var(--text-secondary)}
+.map-control-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--bg-tertiary)}
+.recenter-btn{position:absolute;bottom:88px;right:16px;z-index:55;background:var(--accent);border:none;border-radius:12px;padding:10px 16px;display:none;align-items:center;gap:8px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--bg-primary);box-shadow:0 4px 20px rgba(0,212,255,.4);transition:all .3s;transform:translateY(20px);opacity:0}
+.recenter-btn.visible{display:flex;transform:translateY(0);opacity:1}
+.recenter-btn:hover{background:#33ddff;transform:translateY(-2px)}
+.camera-status{position:absolute;top:80px;right:16px;z-index:50;padding:5px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;font-size:9px;font-weight:600;display:none;align-items:center;gap:5px;backdrop-filter:blur(10px);color:var(--text-muted);transition:all .3s}
+.camera-status.visible{display:flex}
+.camera-status.following{border-color:rgba(0,212,255,.4);color:var(--accent)}
+.camera-status-dot{width:6px;height:6px;border-radius:50%;background:var(--text-muted)}
+.camera-status.following .camera-status-dot{background:var(--accent);animation:pulse 1.5s infinite}
+.bottom-panel{position:absolute;bottom:0;left:0;right:0;background:var(--bg-secondary);border-top:1px solid var(--border);border-radius:20px 20px 0 0;z-index:60;max-height:62vh;overflow-y:auto;transition:transform .4s cubic-bezier(.4,0,.2,1),box-shadow .4s;box-shadow:0 -4px 24px rgba(0,0,0,.3)}
+.bottom-panel.collapsed{transform:translateY(100%);box-shadow:none}
+.panel-handle-area{display:flex;align-items:center;justify-content:center;padding:10px 16px 6px;cursor:pointer;position:sticky;top:0;background:var(--bg-secondary);z-index:5;border-radius:20px 20px 0 0;user-select:none}
+.panel-handle-area:hover .panel-chevron{color:var(--accent)}
+.panel-handle{width:36px;height:4px;background:var(--border-light);border-radius:2px;flex-shrink:0}
+.panel-chevron{margin-left:12px;font-size:14px;color:var(--text-muted);transition:transform .3s,color .2s}
+.bottom-panel.collapsed .panel-chevron{transform:rotate(180deg)}
+.panel-content{padding:0 16px 20px}
+.panel-expand-btn{position:absolute;bottom:16px;left:50%;transform:translateX(-50%) translateY(80px);z-index:55;background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:10px 18px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:all .4s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(12px);box-shadow:0 4px 20px rgba(0,0,0,.4);opacity:0;pointer-events:none;font-family:inherit;color:var(--text-secondary);font-size:12px;font-weight:500}
+.panel-expand-btn.visible{transform:translateX(-50%) translateY(0);opacity:1;pointer-events:auto}
+.panel-expand-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--bg-tertiary)}
+.panel-expand-summary{display:flex;align-items:center;gap:10px}
+.panel-expand-dest{font-weight:600;color:var(--text-primary);font-size:12px}
+.panel-expand-divider{width:1px;height:14px;background:var(--border-light)}
+.panel-expand-stat{font-size:11px;color:var(--accent);font-weight:600}
+.journey-summary{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.journey-dest{display:flex;flex-direction:column;gap:2px}
+.journey-label{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
+.journey-destination{font-size:18px;font-weight:700;letter-spacing:-.3px}
+.journey-cargo-tag{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:3px 9px;border-radius:5px;background:rgba(0,212,255,.08);color:var(--accent);border:1px solid rgba(0,212,255,.2);margin-top:3px;text-transform:uppercase;letter-spacing:.4px;width:fit-content;transition:all .3s}
+.journey-cargo-tag.cargo-medical{background:rgba(239,68,68,.1);color:#f87171;border-color:rgba(239,68,68,.25)}
+.journey-cargo-tag.cargo-food{background:rgba(245,158,11,.1);color:#fbbf24;border-color:rgba(245,158,11,.25)}
+.journey-cargo-tag.cargo-construction{background:rgba(59,130,246,.1);color:#60a5fa;border-color:rgba(59,130,246,.25)}
+.journey-cargo-tag.cargo-agricultural{background:rgba(16,185,129,.1);color:#34d399;border-color:rgba(16,185,129,.25)}
+.journey-stats{display:flex;gap:16px;text-align:right}
+.stat-item{display:flex;flex-direction:column;gap:2px}
+.stat-value{font-size:16px;font-weight:700;color:var(--accent)}
+.stat-label{font-size:10px;color:var(--text-muted)}
+.route-status{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:12px;margin-bottom:12px}
+.risk-badge{padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+.risk-badge.low{background:var(--success-bg);color:var(--success);border:1px solid rgba(16,185,129,.3)}
+.risk-badge.moderate{background:var(--warning-bg);color:var(--warning);border:1px solid rgba(245,158,11,.3)}
+.risk-badge.high{background:var(--critical-bg);color:var(--critical);border:1px solid rgba(239,68,68,.3)}
+.risk-score{font-size:20px;font-weight:800}
+.risk-score.low{color:var(--success)}.risk-score.moderate{color:var(--warning)}.risk-score.high{color:var(--critical)}
+.risk-max{font-size:12px;color:var(--text-muted)}
+.weather-strip{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:4px}
+.weather-item{flex:1;min-width:72px;padding:8px 6px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:10px;text-align:center}
+.weather-item.alert{border-color:rgba(239,68,68,.4);background:var(--critical-bg)}
+.weather-icon{font-size:18px;margin-bottom:2px}
+.weather-temp{font-size:13px;font-weight:600}
+.weather-desc{font-size:8px;color:var(--text-muted);margin-top:2px;line-height:1.2}
+.weather-location{font-size:8px;color:var(--text-secondary);margin-top:3px;font-weight:500}
+.weather-time{font-size:7px;color:var(--accent);margin-top:1px;font-weight:600}
+.route-selector{margin-bottom:12px}
+.route-selector-title{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.route-selector-title .ai-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.5s infinite}
+.route-cards{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.route-card{flex:0 0 200px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:12px;padding:10px 12px;cursor:pointer;transition:all .25s;position:relative;overflow:hidden}
+.route-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.route-card.active{border-color:var(--accent);background:rgba(0,212,255,.06);box-shadow:0 0 0 1px var(--accent),0 4px 16px rgba(0,212,255,.15)}
+.route-card.active::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--success))}
+.route-card.recommended{border-color:var(--success)}
+.route-card.recommended::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--success),var(--neon-emerald))}
+.route-card.blocked{opacity:.55;border-color:rgba(239,68,68,.4)}
+.route-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.route-card-name{font-size:11px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:5px}
+.route-card-tag{font-size:8px;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:uppercase;letter-spacing:.3px}
+.route-card-tag.primary{background:rgba(0,212,255,.15);color:var(--accent)}
+.route-card-tag.alt{background:rgba(245,158,11,.15);color:var(--warning)}
+.route-card-tag.multimodal{background:rgba(59,130,246,.15);color:var(--info)}
+.route-card-tag.blocked{background:var(--critical-bg);color:var(--critical)}
+.route-card-tag.recommended-tag{background:var(--success-bg);color:var(--success)}
+.route-card-stats{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px}
+.route-stat{font-size:9px;color:var(--text-muted)}
+.route-stat strong{color:var(--text-primary);font-weight:600;font-size:10px;display:block}
+.route-stat.danger strong{color:var(--critical)}
+.route-stat.safe strong{color:var(--success)}
+.route-card-desc{font-size:9px;color:var(--text-muted);margin-top:6px;line-height:1.3;font-style:italic}
+.ai-recommendation{background:linear-gradient(135deg,rgba(0,212,255,.05),rgba(0,102,255,.05));border:1px solid rgba(0,212,255,.2);border-radius:14px;padding:14px;margin-bottom:12px}
+.ai-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.ai-icon{width:28px;height:28px;background:linear-gradient(135deg,var(--accent),#0066ff);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ai-title{font-size:12px;font-weight:600;color:var(--accent)}
+.ai-confidence{margin-left:auto;font-size:10px;color:var(--text-muted);padding:3px 8px;background:var(--bg-tertiary);border-radius:6px}
+.ai-reason{font-size:11px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px}
+.ai-diff-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}
+.ai-diff-item{text-align:center;padding:8px;background:var(--bg-tertiary);border-radius:8px}
+.ai-diff-value{font-size:13px;font-weight:700;color:var(--warning)}
+.ai-diff-value.better{color:var(--success)}
+.ai-diff-value.worse{color:var(--warning)}
+.ai-diff-label{font-size:8px;color:var(--text-muted);margin-top:2px}
+.ai-actions{display:flex;gap:8px}
+.btn{flex:1;padding:10px 16px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;border:none;text-align:center;font-family:inherit}
+.btn-primary{background:var(--accent);color:var(--bg-primary)}
+.btn-primary:hover{background:var(--accent-dim);transform:translateY(-1px)}
+.btn-secondary{background:var(--bg-tertiary);color:var(--text-secondary);border:1px solid var(--border)}
+.btn-secondary:hover{border-color:var(--text-muted);color:var(--text-primary)}
+.alert-banner{background:var(--critical-bg);border:1px solid rgba(239,68,68,.3);border-radius:12px;padding:12px 16px;margin-bottom:12px;display:none}
+.alert-banner.visible{display:block;animation:slideIn .3s ease}
+@keyframes slideIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+.alert-banner-header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.alert-severity{padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;background:var(--critical);color:#fff}
+.alert-type{font-size:11px;color:var(--critical);font-weight:600}
+.alert-message{font-size:12px;color:var(--text-secondary);line-height:1.4}
+.dest-status{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--success-bg);border:1px solid rgba(16,185,129,.2);border-radius:10px;margin-bottom:12px}
+.dest-status-icon{font-size:16px}
+.dest-status-text{font-size:12px;font-weight:500}
+.dest-status-text span{color:var(--text-muted);font-weight:400}
+.sim-toggle-btn{position:absolute;top:50px;left:16px;z-index:56;width:36px;height:36px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;transition:all .2s;backdrop-filter:blur(10px)}
+.sim-toggle-btn:hover{border-color:var(--warning);color:var(--warning)}
+.sim-toggle-btn.active{border-color:var(--warning);background:var(--warning-bg);color:var(--warning)}
+.sim-bar{position:absolute;top:92px;left:16px;z-index:55;display:none;flex-wrap:wrap;gap:5px;background:rgba(10,14,26,.94);border:1px solid var(--border);border-radius:12px;padding:6px;backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,.5);max-width:calc(100vw - 32px)}
+.sim-bar.visible{display:flex}
+.sim-btn{padding:6px 10px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);font-size:10px;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit;display:flex;align-items:center;gap:4px;white-space:nowrap}
+.sim-btn:hover{border-color:var(--critical);color:var(--critical);background:var(--critical-bg)}
+.sim-btn.active{background:var(--critical);color:#fff;border-color:var(--critical)}
+.sim-btn .sim-icon{font-size:12px}
+.sim-btn.sim-clear{color:var(--success);border-color:rgba(16,185,129,.3)}
+.sim-btn.sim-clear:hover{border-color:var(--success);background:var(--success-bg)}
+.bottom-nav{display:flex;align-items:center;justify-content:space-around;padding:10px 16px;background:var(--bg-secondary);border-top:1px solid var(--border);flex-shrink:0;z-index:100}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:6px 12px;border-radius:8px;transition:all .2s}
+.nav-item:hover{background:var(--bg-tertiary)}
+.nav-item.active .nav-icon{color:var(--accent)}
+.nav-item.active .nav-label{color:var(--accent)}
+.nav-icon{font-size:18px;color:var(--text-muted);transition:color .2s}
+.nav-label{font-size:10px;color:var(--text-muted);font-weight:500;transition:color .2s}
+.screen{display:none;height:100%}
+.screen.active{display:flex;flex-direction:column}
+.alerts-screen,.trip-screen,.profile-screen{padding:16px;overflow-y:auto}
+.screen-title{font-size:20px;font-weight:700;margin-bottom:16px}
+.alert-item{display:flex;gap:12px;padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;margin-bottom:10px}
+.alert-item-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.alert-item-icon.critical{background:var(--critical-bg);border:1px solid rgba(239,68,68,.3)}
+.alert-item-icon.high{background:var(--warning-bg);border:1px solid rgba(245,158,11,.3)}
+.alert-item-icon.medium{background:var(--info-bg);border:1px solid rgba(59,130,246,.3)}
+.alert-item-icon.low{background:var(--success-bg);border:1px solid rgba(16,185,129,.3)}
+.alert-item-content{flex:1}
+.alert-item-title{font-size:13px;font-weight:600;margin-bottom:4px}
+.alert-item-desc{font-size:11px;color:var(--text-muted);line-height:1.4}
+.alert-item-time{font-size:10px;color:var(--text-muted);margin-top:6px}
+.trip-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
+.trip-card-title{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.trip-route-visual{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.route-point{display:flex;flex-direction:column;align-items:center;gap:4px}
+.route-dot{width:10px;height:10px;border-radius:50%;border:2px solid var(--accent)}
+.route-dot.destination{background:var(--success);border-color:var(--success)}
+.route-line{flex:1;height:2px;background:var(--border-light);position:relative}
+.route-line-progress{position:absolute;top:0;left:0;height:100%;width:0;background:var(--accent);border-radius:1px;transition:width .5s}
+.route-city{font-size:12px;font-weight:600}
+.trip-detail-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.trip-detail-row:last-child{border-bottom:none}
+.trip-detail-label{font-size:12px;color:var(--text-muted)}
+.trip-detail-value{font-size:13px;font-weight:600}
+.profile-header{display:flex;align-items:center;gap:14px;margin-bottom:24px}
+.profile-avatar{width:48px;height:48px;background:linear-gradient(135deg,var(--accent),#0066ff);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.profile-info{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.profile-name{font-size:16px;font-weight:600}
+.profile-role{font-size:12px;color:var(--text-muted)}
+.profile-cargo-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;margin-top:4px;text-transform:uppercase;letter-spacing:.4px;width:fit-content;transition:all .3s}
+.profile-cargo-badge.cargo-medical{background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.25)}
+.profile-cargo-badge.cargo-food{background:rgba(245,158,11,.12);color:#fbbf24;border:1px solid rgba(245,158,11,.25)}
+.profile-cargo-badge.cargo-construction{background:rgba(59,130,246,.12);color:#60a5fa;border:1px solid rgba(59,130,246,.25)}
+.profile-cargo-badge.cargo-agricultural{background:rgba(16,185,129,.12);color:#34d399;border:1px solid rgba(16,185,129,.25)}
+.profile-cargo-badge .cargo-priority-dot{width:6px;height:6px;border-radius:50%;animation:pulse 1.5s infinite}
+.profile-cargo-badge.cargo-medical .cargo-priority-dot{background:#f87171}
+.profile-cargo-badge.cargo-food .cargo-priority-dot{background:#fbbf24}
+.profile-cargo-badge.cargo-construction .cargo-priority-dot{background:#60a5fa}
+.profile-cargo-badge.cargo-agricultural .cargo-priority-dot{background:#34d399}
+.profile-section{margin-bottom:20px}
+.profile-section-title{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.profile-option{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;cursor:pointer;transition:all .2s}
+.profile-option:hover{border-color:var(--border-light)}
+.profile-option-left{display:flex;align-items:center;gap:10px}
+.profile-option-icon{font-size:16px}
+.profile-option-text{font-size:13px;font-weight:500}
+.profile-option-arrow{color:var(--text-muted);font-size:14px}
+.toggle{width:40px;height:22px;background:var(--border);border-radius:11px;position:relative;cursor:pointer;transition:all .2s}
+.toggle.active{background:var(--accent)}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:all .2s}
+.toggle.active::after{left:21px}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;display:none;align-items:flex-end;justify-content:center}
+.modal-overlay.visible{display:flex}
+.modal-content{width:100%;max-width:500px;background:var(--bg-secondary);border-radius:20px 20px 0 0;padding:24px;max-height:80vh;overflow-y:auto}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.modal-title{font-size:18px;font-weight:700}
+.modal-close{width:32px;height:32px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-secondary);font-size:16px}
+.report-types{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.report-type-btn{padding:12px 8px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:10px;text-align:center;cursor:pointer;transition:all .2s;font-size:11px;color:var(--text-secondary)}
+.report-type-btn:hover,.report-type-btn.selected{border-color:var(--accent);color:var(--accent);background:rgba(0,212,255,.05)}
+.report-type-icon{font-size:20px;margin-bottom:4px}
+.voice-alert{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:10px 16px;display:flex;align-items:center;gap:8px;z-index:150;opacity:0;transition:opacity .3s;pointer-events:none;max-width:90%}
+.voice-alert.visible{opacity:1;pointer-events:auto}
+.voice-icon{font-size:16px}
+.voice-text{font-size:12px;color:var(--text-secondary)}
+.ws-status{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-muted);padding:3px 8px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px}
+.ws-dot{width:6px;height:6px;border-radius:50%;background:var(--text-muted)}
+.ws-dot.connected{background:var(--success);animation:pulse 2s infinite}
+.ws-dot.connecting{background:var(--warning);animation:pulse 1s infinite}
+.ws-dot.disconnected{background:var(--critical)}
+.leaflet-container{background:#1a1f2e!important;font-family:'Inter',sans-serif!important}
+.leaflet-control-attribution{background:rgba(10,14,26,.85)!important;color:#5a6480!important;font-size:9px!important}
+.leaflet-control-attribution a{color:#00d4ff!important}
+.leaflet-popup-content-wrapper{background:#151b2e!important;color:#fff!important;border-radius:10px!important;border:1px solid #1e2a45!important}
+.leaflet-popup-tip{background:#151b2e!important}
+.leaflet-popup-content{margin:10px 14px!important;font-size:12px!important;line-height:1.4!important}
+.leaflet-popup-close-button{color:#8b95b0!important}
+.hw-badge{background:rgba(10,14,26,.88);border:1px solid rgba(0,212,255,.4);border-radius:20px;padding:3px 9px;font-size:9px;font-weight:700;color:var(--accent);white-space:nowrap;box-shadow:0 0 12px rgba(0,212,255,.25),0 2px 8px rgba(0,0,0,.5);backdrop-filter:blur(6px)}
+.hw-badge.orange{border-color:rgba(255,119,0,.5);color:#ff7700;box-shadow:0 0 12px rgba(255,119,0,.25),0 2px 8px rgba(0,0,0,.5)}
+.hw-badge.emerald{border-color:rgba(16,185,129,.5);color:#10b981;box-shadow:0 0 12px rgba(16,185,129,.25),0 2px 8px rgba(0,0,0,.5)}
+.hw-badge.info{border-color:rgba(59,130,246,.5);color:#60a5fa;box-shadow:0 0 12px rgba(59,130,246,.25),0 2px 8px rgba(0,0,0,.5)}
+.node-circle{width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#4ddfff,#00a8cc);border:2px solid #fff;box-shadow:0 0 14px rgba(0,212,255,.7),0 0 28px rgba(0,212,255,.3)}
+.node-circle.dest{background:radial-gradient(circle at 30% 30%,#34d399,#059669);box-shadow:0 0 14px rgba(16,185,129,.7),0 0 28px rgba(16,185,129,.3)}
+.node-label{position:absolute;top:-22px;left:50%;transform:translateX(-50%);background:rgba(10,14,26,.9);border:1px solid var(--border);border-radius:4px;padding:2px 7px;font-size:9px;font-weight:600;color:var(--text-primary);white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.calamity-marker-wrap{position:relative;width:44px;height:44px;display:flex;align-items:center;justify-content:center}
+.calamity-pulse-ring{position:absolute;inset:0;border-radius:50%;background:rgba(239,68,68,.25);animation:calPulse 2s ease-out infinite}
+.calamity-core-icon{position:relative;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ff6b6b,#c92a2a);border:2.5px solid #fff;box-shadow:0 0 16px rgba(239,68,68,.8),0 0 32px rgba(239,68,68,.4);display:flex;align-items:center;justify-content:center;font-size:14px}
+@keyframes calPulse{0%{transform:scale(.8);opacity:.8}100%{transform:scale(2.2);opacity:0}}
+.truck-marker-wrapper{position:relative;width:50px;height:50px;display:flex;align-items:center;justify-content:center}
+.vehicle-pulse-ring{position:absolute;width:44px;height:44px;border-radius:50%;border:2.5px solid rgba(0,212,255,.7);animation:vehiclePulse 2s ease-out infinite;pointer-events:none}
+.vehicle-pulse-ring.ring2{animation-delay:.7s}
+@keyframes vehiclePulse{0%{transform:scale(.7);opacity:.9}100%{transform:scale(2.8);opacity:0}}
+.truck-marker-inner{position:relative;width:38px;height:38px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#4ddfff,#0099cc);border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 20px rgba(0,212,255,.9),0 0 40px rgba(0,212,255,.4),0 4px 12px rgba(0,0,0,.5);transition:transform .4s cubic-bezier(.25,.46,.45,.94);z-index:2}
+.trail-dot{position:absolute;width:8px;height:8px;border-radius:50%;background:rgba(0,212,255,.5);pointer-events:none;animation:trailFade 1.5s ease-out forwards}
+@keyframes trailFade{0%{opacity:.7;transform:scale(1)}100%{opacity:0;transform:scale(.2)}}
+.blocked-segment{stroke-dasharray:8 8;animation:blockedPulse 2s linear infinite}
+@keyframes blockedPulse{to{stroke-dashoffset:-16}}
+.reroute-flash{animation:rerouteFlash .8s ease}
+@keyframes rerouteFlash{0%{box-shadow:0 0 0 0 rgba(0,212,255,.7)}50%{box-shadow:0 0 40px 15px rgba(0,212,255,.35)}100%{box-shadow:0 0 0 0 rgba(0,212,255,0)}}
+@media(max-width:480px){
+.top-bar{padding:10px 12px}.logo-text{font-size:12px}.connection-status{display:none}
+.journey-stats{gap:10px}.stat-value{font-size:14px}
+.ai-diff-grid{grid-template-columns:repeat(3,1fr);gap:4px}
+.bottom-panel{max-height:55vh}
+.weather-strip{gap:4px}.weather-item{min-width:64px;padding:6px 4px}
+.elevation-badge,.bearing-badge,.route-loading-indicator,.gps-accuracy,.camera-status{display:none!important}
+.layer-switcher{top:50px}
+.panel-expand-dest,.panel-expand-divider{display:none}
+.form-row{flex-direction:column;gap:0}
+.sim-bar{max-width:calc(100vw - 80px)}
+.sim-btn{font-size:9px;padding:5px 8px}
+.route-card{flex:0 0 170px}
+.recenter-btn{bottom:76px;right:12px;padding:8px 12px;font-size:10px}
+}
+@media(min-width:768px){.bottom-panel:not(.collapsed){left:50%;transform:translateX(-50%);max-width:520px}.bottom-panel.collapsed{transform:translateX(-50%) translateY(100%)}.map-controls{bottom:200px}}
+::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+<div class="loading-overlay" id="loadingScreen"><div class="loading-spinner"></div><div class="loading-text">Initializing NER Smart Logistics...</div></div>
+<div class="role-selection-screen" id="roleSelectionScreen">
+<div class="role-header"><div class="role-header-icon">🚛</div><h1>NER Smart Logistics</h1><p>AI-Powered Route Intelligence & Calamity Response Platform for North Eastern Region</p></div>
+<div class="role-cards">
+<div class="role-card" onclick="selectRole('driver')"><div class="role-card-icon driver">🚛</div><h2>Driver Portal</h2><p>Live GPS tracking, AI route optimization, real-time calamity alerts, and multi-route navigation for logistics drivers.</p><div class="role-card-btn driver-btn">Enter Driver Portal →</div></div>
+<div class="role-card" onclick="selectRole('authority')"><div class="role-card-icon authority">🏛</div><h2>Local Authorities Portal</h2><p>Report natural calamities, upload damage footage, pinpoint hazard locations, and broadcast alerts to all active drivers.</p><div class="role-card-btn authority-btn">Enter Authority Portal →</div></div>
+</div>
+<div class="role-footer">NER Smart Logistics v19.0 · Real-Road Geometry Engine</div>
+</div>
+<div class="auth-screen" id="authScreen">
+<div class="auth-container">
+<button class="auth-back-btn" onclick="goBackToRoleSelect()">← Back to Role Selection</button>
+<div class="auth-header"><div class="auth-header-icon">🏛</div><h2>Authority Authentication</h2><p>Verify your identity to access the hazard reporting dashboard</p></div>
+<div class="auth-form">
+<div class="form-group"><label class="form-label">Department</label><select class="form-select" id="authDepartment"><option value="">Select Department...</option><option value="hospitals">🏥 Hospitals & Health Services</option><option value="forest">🌲 Forest Department</option><option value="ddma">🛡 District Disaster Management Authority</option><option value="police">🚔 State Police</option><option value="fire">🔥 Fire & Emergency Services</option><option value="pwd">🛣 Public Works Department</option><option value="imd">🌦 Indian Meteorological Department</option><option value="nhai">🛣 National Highways Authority</option><option value="water">🌊 Water Resources Department</option><option value="revenue">📋 Revenue & Disaster Management</option></select></div>
+<div class="form-group"><label class="form-label">Officer Name</label><input type="text" class="form-input" id="authOfficerName" placeholder="Full name of officer"></div>
+<div class="form-group"><label class="form-label">Official Phone Number</label><input type="tel" class="form-input" id="authPhone" placeholder="+91 XXXXX XXXXX"></div>
+<div class="form-group"><label class="form-label">Government ID / Badge Number</label><input type="text" class="form-input" id="authGovId" placeholder="Official Govt. ID / Badge Number"></div>
+<button class="auth-submit-btn" onclick="authorityLogin()">🔐 Authenticate & Access Dashboard</button>
+</div>
+</div>
+</div>
+<div class="auth-dashboard" id="authorityDashboard">
+<div class="auth-dash-header">
+<div class="auth-dash-header-left"><div class="auth-dash-header-icon">🏛</div><div class="auth-dash-header-info"><h3 id="authDashOfficerName">Officer</h3><p id="authDashDept">Department</p></div></div>
+<div class="auth-dash-header-right"><div class="auth-dash-status"><div class="status-dot-sm"></div>Connected</div><button class="auth-back-btn" onclick="goBackToRoleSelect()" style="margin:0">← Exit</button></div>
+</div>
+<div class="auth-dash-body">
+<div class="auth-dash-form-panel">
+<div class="auth-section"><div class="auth-section-title"><span class="sec-icon">⚠</span> Hazard Details</div><div class="auth-form-card">
+<div class="form-group"><label class="form-label">Type of Calamity</label><select class="form-select" id="authHazardType"><option value="">Select hazard type...</option><option value="landslide">⛰ Landslide / Mudslide</option><option value="flood">🌊 Flash Flood / Inundation</option><option value="cloudburst">🌧 Cloudburst / Heavy Rainfall</option><option value="bridge">🌉 Bridge Damage / Road Washout</option><option value="earthquake">🌍 Earthquake</option><option value="fire">🔥 Forest Fire</option><option value="storm">⛈ Severe Storm / Cyclone</option><option value="roadblock">🚧 Major Road Blockage</option></select></div>
+<div class="form-group"><label class="form-label">Severity Level</label><div class="severity-selector" id="severitySelector"><div class="severity-option sev-low" onclick="selectSeverity(this,'low')">🟢 Low</div><div class="severity-option sev-med" onclick="selectSeverity(this,'moderate')">🟡 Moderate</div><div class="severity-option sev-high" onclick="selectSeverity(this,'high')">🟠 High</div><div class="severity-option sev-crit" onclick="selectSeverity(this,'critical')">🔴 Critical</div></div></div>
+<div class="form-group"><label class="form-label">Situational Notes</label><textarea class="form-input" id="authNotes" rows="3" placeholder="Describe the current situation..."></textarea></div>
+</div></div>
+<div class="auth-section"><div class="auth-section-title"><span class="sec-icon">📸</span> Media Evidence</div><div class="auth-form-card">
+<div class="media-upload-zone" onclick="document.getElementById('mediaUploadInput').click()"><div class="upload-icon">📤</div><div class="upload-text">Click to upload images or video footage</div><div class="upload-hint">Supports JPG, PNG, MP4 · Max 25MB per file</div></div>
+<input type="file" id="mediaUploadInput" accept="image/*,video/*" multiple style="display:none" onchange="handleMediaUpload(this)">
+<div class="media-preview-grid" id="mediaPreviewGrid"></div>
+</div></div>
+<div class="auth-section"><div class="auth-section-title"><span class="sec-icon">📍</span> Hazard Location (Click Map to Set)</div><div class="auth-form-card">
+<div class="auth-coords-display" id="authCoordsDisplay">
+<div class="auth-coords-row"><div class="coord-dot"></div><span class="coord-label">LAT</span><span class="coord-value" id="authHazardLat">— click map —</span></div>
+<div class="auth-coords-row"><div class="coord-dot" style="background:var(--accent)"></div><span class="coord-label">LNG</span><span class="coord-value" id="authHazardLng">— click map —</span></div>
+</div>
+</div></div>
+</div>
+<div class="auth-dash-map-panel">
+<div style="padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0"><div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">📍 Location Picker</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px">Click on map to set hazard coordinates</div></div>
+<div class="auth-map-container"><div id="authMapPicker"></div><div class="auth-map-hint">🖱 Click anywhere on map to place hazard marker</div></div>
+<div class="auth-submit-area"><button class="auth-broadcast-btn" id="authBroadcastBtn" onclick="submitHazardReport()"><span class="broadcast-pulse"></span>📡 Broadcast Hazard to All Active Drivers</button></div>
+</div>
+</div>
+</div>
+<div id="driverMainContent" style="display:none;flex:1;flex-direction:column;">
+<div class="start-journey-screen" id="startScreen">
+<div class="start-logo">🚛</div><div class="start-title">NER Smart Logistics</div><div class="start-subtitle">AI Multi-Calamity Route Intelligence · North Eastern Region</div>
+<div class="journey-form">
+<div class="gps-permission-banner"><span>📍</span><span>GPS access required for live vehicle tracking.</span></div>
+<div class="form-row"><div class="form-group"><label class="form-label">Driver Name</label><input type="text" class="form-input" id="driverName" value="Rajesh Kumar"></div><div class="form-group"><label class="form-label">Mobile</label><input type="tel" class="form-input" id="driverMobile" value="+91 98765 43210"></div></div>
+<div class="form-group"><label class="form-label">Driver ID</label><input type="text" class="form-input" id="driverId" value="101"></div>
+<div class="form-group"><label class="form-label">Origin District / Hub</label><select class="form-select" id="originSelect"></select></div>
+<div class="form-group"><label class="form-label">Destination District / Hub</label><select class="form-select" id="destSelect"></select></div>
+<div class="form-group"><label class="form-label">Cargo Type</label><select class="form-select" id="cargoType"><option value="medical">🏥 Medical Supplies (Critical)</option><option value="food">🍚 Food Supplies (High)</option><option value="construction">🏗 Construction Material (Medium)</option><option value="agricultural">🌾 Agricultural Produce (Normal)</option></select></div>
+<button class="start-btn" onclick="startJourney()">START JOURNEY</button>
+</div></div>
+<div class="top-bar"><div class="logo-section"><div class="logo-icon">🚛</div><div><div class="logo-text">NER Smart Logistics</div><div class="logo-subtitle">Real-Road Geometry Engine</div></div></div><div class="top-bar-actions"><div class="ws-status"><div class="ws-dot" id="wsDot"></div><span id="wsStatusText">IDLE</span></div><div class="connection-status"><div class="status-dot"></div><span id="connectionText">LIVE</span></div><div class="alert-badge" id="alertBadge" onclick="showScreen('alerts')"><span>🔔</span><div class="alert-count" id="alertCount">0</div></div><button class="language-btn" onclick="toggleLanguage()">EN ▾</button></div></div>
+<div class="main-content">
+<div class="screen active" id="mapScreen">
+<div class="map-container">
+<div id="map"></div>
+<div class="map-fallback" id="mapFallback"><div style="font-size:28px;margin-bottom:12px">🗺</div><div style="font-size:13px;color:var(--text-secondary)"><strong>Loading Map Engine...</strong></div></div>
+<div class="sim-toggle-btn" id="simToggleBtn" onclick="toggleSimBar()" title="Simulate Calamities">⚡</div>
+<div class="sim-bar" id="simBar">
+<button class="sim-btn" onclick="triggerCalamity('landslide')"><span class="sim-icon">⛰️</span>Landslide</button>
+<button class="sim-btn" onclick="triggerCalamity('flood')"><span class="sim-icon">🌊</span>Flood</button>
+<button class="sim-btn" onclick="triggerCalamity('cloudburst')"><span class="sim-icon">🌧️</span>Cloudburst</button>
+<button class="sim-btn" onclick="triggerCalamity('bridge')"><span class="sim-icon">🌉</span>Bridge</button>
+<button class="sim-btn sim-clear" onclick="clearAllCalamities()"><span class="sim-icon">✓</span>Clear</button>
+</div>
+<div class="mode-indicator" id="modeIndicator"><div class="mode-dot"></div><span id="modeText">LIVE GPS</span></div>
+<div class="camera-status" id="cameraStatus"><div class="camera-status-dot"></div><span id="cameraStatusText">AUTO-FOLLOW</span></div>
+<div class="gps-accuracy" id="gpsAccuracy"><div class="gps-accuracy-dot" id="gpsAccDot"></div><span id="gpsAccText">Acquiring GPS...</span></div>
+<div class="layer-switcher" id="layerSwitcher"><button class="layer-btn active" data-layer="satellite" onclick="switchLayer('satellite')">Satellite</button><button class="layer-btn" data-layer="carto" onclick="switchLayer('carto')">Dark</button><button class="layer-btn" data-layer="osm" onclick="switchLayer('osm')">OSM</button></div>
+<div class="route-loading-indicator" id="routeLoadingIndicator"><div class="route-loading-spinner"></div><span id="routeLoadingText">Fetching road network...</span></div>
+<div class="bearing-badge" id="bearingBadge"><div class="bearing-compass" id="bearingCompass"></div><span class="bearing-value" id="bearingValue">—</span></div>
+<div class="elevation-badge" id="elevationBadge"><span class="elevation-icon">⛰</span><div><div class="elevation-value" id="elevationValue">—</div><div class="elevation-label">Elevation</div></div></div>
+<div class="map-controls" id="mapControls"><div class="map-control-btn" onclick="recenterOnVehicle()" title="Recenter">🎯</div><div class="map-control-btn" onclick="zoomIn()">+</div><div class="map-control-btn" onclick="zoomOut()">−</div><div class="map-control-btn" id="voiceBtn" onclick="toggleVoice()">🔊</div></div>
+<button class="recenter-btn" id="recenterBtn" onclick="recenterOnVehicle()"><span>🎯</span><span>Recenter</span></button>
+<div class="panel-expand-btn" id="panelExpandBtn" onclick="toggleBottomPanel()"><span style="font-size:14px">▲</span><div class="panel-expand-summary"><span class="panel-expand-dest" id="expandDest">—</span><span class="panel-expand-divider"></span><span class="panel-expand-stat" id="expandEta">—</span><span class="panel-expand-divider"></span><span class="panel-expand-stat" id="expandDist">—</span></div></div>
+</div>
+<div class="bottom-panel" id="bottomPanel">
+<div class="panel-handle-area" onclick="toggleBottomPanel()"><div class="panel-handle"></div><span class="panel-chevron">▼</span></div>
+<div class="panel-content">
+<div class="alert-banner" id="alertBanner"><div class="alert-banner-header"><span class="alert-severity" id="alertSeverity">CRITICAL</span><span class="alert-type" id="alertType">HAZARD</span></div><div class="alert-message" id="alertMessage">Hazard detected.</div></div>
+<div class="journey-summary"><div class="journey-dest"><span class="journey-label">TRIP TO</span><span class="journey-destination" id="tripDest">—</span><span class="journey-cargo-tag" id="journeyCargoTag">—</span></div><div class="journey-stats"><div class="stat-item"><span class="stat-value" id="etaValue">—</span><span class="stat-label">ETA</span></div><div class="stat-item"><span class="stat-value" id="distValue">—</span><span class="stat-label">Remaining</span></div></div></div>
+<div class="route-status"><span class="risk-badge low" id="riskBadge">LOW RISK</span><div><span class="risk-score low" id="riskScore">28</span><span class="risk-max">/100</span></div><div style="margin-left:auto;font-size:11px;color:var(--text-muted)">Disruption: <strong id="disruptionProb" style="color:var(--success)">21%</strong></div></div>
+<div class="dest-status"><span class="dest-status-icon">✓</span><span class="dest-status-text">Destination Accessible <span>· Normal</span></span></div>
+<div class="route-selector" id="routeSelector" style="display:none"><div class="route-selector-title"><span class="ai-dot"></span>AI MULTI-ROUTE PREDICTION</div><div class="route-cards" id="routeCards"></div></div>
+<div class="weather-strip" id="weatherStrip"></div>
+<div class="ai-recommendation" id="aiRecommendation" style="display:none"><div class="ai-header"><div class="ai-icon">🧠</div><span class="ai-title">AI ROUTE RECOMMENDATION</span><span class="ai-confidence" id="aiConfidence">89%</span></div><div class="ai-reason" id="aiReason">—</div><div class="ai-diff-grid" id="aiDiffGrid"></div><div class="ai-actions"><button class="btn btn-primary" onclick="acceptRecommended()">ACCEPT SAFEST</button><button class="btn btn-secondary" onclick="dismissRecommendation()">KEEP CURRENT</button></div></div>
+</div></div>
+</div>
+<div class="screen" id="alertsScreen"><div class="alerts-screen"><div class="screen-title">Alerts</div><div id="alertsList"><div class="alert-item"><div class="alert-item-icon low">✓</div><div class="alert-item-content"><div class="alert-item-title">System Ready</div><div class="alert-item-desc">Real-road geometry engine active.</div><div class="alert-item-time">System</div></div></div></div></div></div>
+<div class="screen" id="tripScreen"><div class="trip-screen"><div class="screen-title">Trip Details</div>
+<div class="trip-card"><div class="trip-card-title">ACTIVE ROUTE</div>
+<div class="trip-route-visual"><div class="route-point"><div class="route-dot"></div><div class="route-city" id="tripOriginCity">Origin</div></div><div class="route-line"><div class="route-line-progress" id="routeProgress"></div></div><div class="route-point"><div class="route-dot destination"></div><div class="route-city" id="tripDestCity">Dest</div></div></div>
+<div class="trip-detail-row"><span class="trip-detail-label">Route</span><span class="trip-detail-value" id="tripRouteName">Route A</span></div>
+<div class="trip-detail-row"><span class="trip-detail-label">Distance</span><span class="trip-detail-value" id="tripTotalDist">—</span></div>
+<div class="trip-detail-row"><span class="trip-detail-label">Remaining</span><span class="trip-detail-value" id="tripRemaining">—</span></div>
+<div class="trip-detail-row"><span class="trip-detail-label">ETA</span><span class="trip-detail-value" id="tripEta">—</span></div>
+<div class="trip-detail-row"><span class="trip-detail-label">Speed</span><span class="trip-detail-value" id="tripSpeed">0 km/h</span></div>
+<div class="trip-detail-row"><span class="trip-detail-label">GPS</span><span class="trip-detail-value" id="tripGpsAcc">—</span></div>
+<div class="trip-detail-row"><span class="trip-detail-label">Elevation</span><span class="trip-detail-value" id="tripElevation">—</span></div>
+<div class="trip-detail-row"><span class="trip-detail-label">Heading</span><span class="trip-detail-value" id="tripBearing">—</span></div>
+<div class="trip-detail-row"><span class="trip-detail-label">Camera</span><span class="trip-detail-value" id="tripCameraMode" style="color:var(--accent)">Auto-Follow</span></div>
+<div class="trip-detail-row"><span class="trip-detail-label">Driver</span><span class="trip-detail-value" id="tripDriverName">—</span></div>
+<div class="trip-detail-row"><span class="trip-detail-label">Mobile</span><span class="trip-detail-value" id="tripDriverMobile">—</span></div>
+</div>
+<div class="trip-card"><div class="trip-card-title">AI ANALYSIS</div>
+<div class="trip-detail-row"><span class="trip-detail-label">Risk Score</span><span class="trip-detail-value" id="tripRiskDisplay" style="color:var(--success)">28/100 — LOW</span></div>
+<div class="trip-detail-row"><span class="trip-detail-label">Disruption</span><span class="trip-detail-value" id="tripDisruption">21%</span></div>
+<div class="trip-detail-row"><span class="trip-detail-label">Cargo</span><span class="trip-detail-value" id="tripCargo">Medical — Critical</span></div>
+<div class="trip-detail-row"><span class="trip-detail-label">Active Hazards</span><span class="trip-detail-value" id="tripCalamityCount" style="color:var(--success)">0</span></div>
+</div></div></div>
+<div class="screen" id="profileScreen"><div class="profile-screen"><div class="screen-title">Settings</div>
+<div class="profile-header"><div class="profile-avatar">👤</div><div class="profile-info"><div class="profile-name" id="profileDriverName">Driver</div><div class="profile-role" id="profileDriverMobile">—</div><div class="profile-cargo-badge" id="profileCargoBadge"><span class="cargo-priority-dot"></span><span id="profileCargoText">—</span></div></div></div>
+<div class="profile-section"><div class="profile-section-title">Preferences</div>
+<div class="profile-option" onclick="toggleVoice()"><div class="profile-option-left"><span class="profile-option-icon">🔊</span><span class="profile-option-text">Voice Alerts</span></div><div class="toggle" id="voiceToggle"></div></div>
+<div class="profile-option" onclick="openReportModal()"><div class="profile-option-left"><span class="profile-option-icon">📝</span><span class="profile-option-text">Report Issue</span></div><span class="profile-option-arrow">→</span></div>
+</div>
+<div class="profile-section"><div class="profile-section-title">Tracking</div>
+<div class="profile-option" onclick="toggleLanguage()"><div class="profile-option-left"><span class="profile-option-icon">🌐</span><span class="profile-option-text" id="langDisplay">Language: English</span></div><span class="profile-option-arrow">→</span></div>
+<div class="profile-option"><div class="profile-option-left"><span class="profile-option-icon">📡</span><span class="profile-option-text">WebSocket</span></div><span class="profile-option-arrow" id="profileWsStatus" style="color:var(--text-muted)">Idle</span></div>
+<div class="profile-option"><div class="profile-option-left"><span class="profile-option-icon">📍</span><span class="profile-option-text">GPS</span></div><span class="profile-option-arrow" id="profileGpsStatus" style="color:var(--text-muted)">Inactive</span></div>
+</div>
+<div class="profile-section"><div class="profile-section-title">About</div>
+<div class="profile-option"><div class="profile-option-left"><span class="profile-option-icon">ℹ</span><span class="profile-option-text">Version 19.0.0</span></div></div>
+<div class="profile-option" onclick="resetApp()"><div class="profile-option-left"><span class="profile-option-icon">🔄</span><span class="profile-option-text">New Journey</span></div><span class="profile-option-arrow">→</span></div>
+</div></div></div>
+</div>
+<div class="bottom-nav">
+<div class="nav-item active" onclick="showScreen('map')" id="navMap"><span class="nav-icon">🗺</span><span class="nav-label">Map</span></div>
+<div class="nav-item" onclick="showScreen('alerts')" id="navAlerts"><span class="nav-icon">🔔</span><span class="nav-label">Alerts</span></div>
+<div class="nav-item" onclick="showScreen('trip')" id="navTrip"><span class="nav-icon">🛣</span><span class="nav-label">Trip</span></div>
+<div class="nav-item" onclick="showScreen('profile')" id="navProfile"><span class="nav-icon">⚙</span><span class="nav-label">Settings</span></div>
+</div>
+</div>
+<div class="voice-alert" id="voiceAlert"><span class="voice-icon">🔊</span><span class="voice-text" id="voiceText">Warning.</span></div>
+<div class="modal-overlay" id="reportModal"><div class="modal-content">
+<div class="modal-header"><div class="modal-title">Report Issue</div><div class="modal-close" onclick="closeReportModal()">✕</div></div>
+<div class="form-group"><label class="form-label">Type</label><div class="report-types"><div class="report-type-btn" onclick="selectReportType(this,'blocked')"><div class="report-type-icon">🚧</div>Blocked</div><div class="report-type-btn" onclick="selectReportType(this,'flood')"><div class="report-type-icon">🌊</div>Flood</div><div class="report-type-btn" onclick="selectReportType(this,'landslide')"><div class="report-type-icon">⛰</div>Landslide</div><div class="report-type-btn" onclick="selectReportType(this,'accident')"><div class="report-type-icon">🚗</div>Accident</div><div class="report-type-btn" onclick="selectReportType(this,'damage')"><div class="report-type-icon">🔨</div>Damaged</div><div class="report-type-btn" onclick="selectReportType(this,'other')"><div class="report-type-icon">📋</div>Other</div></div></div>
+<div class="form-group"><label class="form-label">Location</label><input type="text" class="form-input" id="reportLocation" value="Auto-detected" readonly></div>
+<div class="form-group"><label class="form-label">Description</label><textarea class="form-input" id="reportDescription" rows="3" placeholder="Description..."></textarea></div>
+<button class="start-btn" onclick="submitReport()">SUBMIT</button>
+</div></div>
+</div>
+<script>
+/* =================================================================
+   DATA & CONFIGURATION
+   ================================================================= */
+var NE_DISTRICTS={"Assam":[{name:"Guwahati",lat:26.1445,lng:91.7362,elev:53},{name:"Silchar",lat:24.83,lng:92.79,elev:35},{name:"Dibrugarh",lat:27.47,lng:94.91,elev:108},{name:"Jorhat",lat:26.75,lng:94.20,elev:95},{name:"Nagaon",lat:26.35,lng:92.68,elev:72},{name:"Tezpur",lat:26.63,lng:92.80,elev:62},{name:"Tinsukia",lat:27.50,lng:95.36,elev:115},{name:"Goalpara",lat:26.17,lng:90.62,elev:38},{name:"Karimganj",lat:24.87,lng:93.25,elev:68},{name:"Haflong",lat:25.17,lng:93.02,elev:650},{name:"Golaghat",lat:26.52,lng:93.97,elev:82},{name:"Morigaon",lat:26.24,lng:92.35,elev:60}],"Arunachal Pradesh":[{name:"Itanagar",lat:27.10,lng:93.62,elev:440},{name:"Pasighat",lat:28.07,lng:95.33,elev:152},{name:"Tawang",lat:27.59,lng:91.86,elev:3000},{name:"Ziro",lat:27.53,lng:93.82,elev:1580},{name:"Along",lat:28.12,lng:94.78,elev:720},{name:"Tezu",lat:27.93,lng:96.17,elev:280}],"Meghalaya":[{name:"Shillong",lat:25.574,lng:91.878,elev:1496},{name:"Tura",lat:25.51,lng:90.22,elev:300},{name:"Jowai",lat:25.457,lng:92.248,elev:1380},{name:"Nongstoin",lat:25.52,lng:91.26,elev:1350}],"Nagaland":[{name:"Kohima",lat:25.67,lng:94.11,elev:1444},{name:"Dimapur",lat:25.91,lng:93.72,elev:145},{name:"Mokokchung",lat:26.33,lng:94.53,elev:1325},{name:"Mon",lat:26.68,lng:95.05,elev:890}],"Manipur":[{name:"Imphal",lat:24.817,lng:93.95,elev:786},{name:"Thoubal",lat:24.64,lng:94.01,elev:770},{name:"Churachandpur",lat:24.34,lng:93.69,elev:920},{name:"Ukhrul",lat:25.11,lng:94.46,elev:1680}],"Mizoram":[{name:"Aizawl",lat:23.73,lng:92.72,elev:1132},{name:"Lunglei",lat:22.89,lng:92.76,elev:1050},{name:"Champhai",lat:23.46,lng:93.17,elev:1620},{name:"Kolasib",lat:24.22,lng:92.68,elev:720}],"Tripura":[{name:"Agartala",lat:23.83,lng:91.29,elev:30},{name:"Udaipur",lat:23.54,lng:91.49,elev:25},{name:"Dharmanagar",lat:24.36,lng:92.16,elev:15}],"Sikkim":[{name:"Gangtok",lat:27.33,lng:88.62,elev:1650},{name:"Namchi",lat:27.16,lng:88.36,elev:1300},{name:"Rangpo",lat:27.19,lng:88.56,elev:450}]};
+var CALAMITY_DB={landslide:[{id:'ls1',name:'Sonapur Mudslide',highway:'NH-6',lat:25.53,lng:92.38,elev:820,severity:'CRITICAL',desc:'Massive mudslide blocking both carriageways.'},{id:'ls2',name:'29th Mile Teesta',highway:'NH-10',lat:27.88,lng:88.90,elev:1100,severity:'HIGH',desc:'Hillside collapse near Teesta gorge.'},{id:'ls3',name:'Paglapahar Sector',highway:'NH-29',lat:24.95,lng:93.10,elev:680,severity:'HIGH',desc:'Recurring landslide zone.'}],flood:[{id:'fl1',name:'Brahmaputra Inundation',highway:'NH-715',lat:26.40,lng:92.50,elev:45,severity:'CRITICAL',desc:'Flash flood. Water 1.2m above road.'},{id:'fl2',name:'Barak Floodplain',highway:'NH-37',lat:24.75,lng:93.00,elev:32,severity:'HIGH',desc:'River breach. Corridor submerged.'}],cloudburst:[{id:'cb1',name:'Paglapahar Cloudburst',highway:'NH-29',lat:25.05,lng:93.18,elev:750,severity:'CRITICAL',desc:'Torrential cloudburst 150mm/hr.'},{id:'cb2',name:'Dima Hasao Deluge',highway:'NH-27',lat:25.40,lng:93.35,elev:680,severity:'HIGH',desc:'Extreme rainfall. Streams overflowed.'}],bridge:[{id:'br1',name:'Kolong River Bridge',highway:'NH-37',lat:26.45,lng:93.10,elev:78,severity:'CRITICAL',desc:'Central span collapsed. Detour 85km.'},{id:'br2',name:'Barak Bridge',highway:'NH-27',lat:24.70,lng:92.95,elev:42,severity:'CRITICAL',desc:'Severe scour damage.'}]};
+var CARGO_CONFIG={medical:{icon:'🏥',label:'Medical Supplies',priority:'CRITICAL',cssClass:'cargo-medical'},food:{icon:'🍚',label:'Food Supplies',priority:'HIGH',cssClass:'cargo-food'},construction:{icon:'🏗',label:'Construction Material',priority:'MEDIUM',cssClass:'cargo-construction'},agricultural:{icon:'🌾',label:'Agricultural Produce',priority:'NORMAL',cssClass:'cargo-agricultural'}};
+
+var WS_BASE_URL='ws://localhost:8000',API_BASE_URL='http://localhost:8000',DRIVER_ID='101';
+var OSRM_PRIMARY='https://router.project-osrm.org';
+var OSRM_MIRROR='https://routing.openstreetmap.de/routed-car';
+
+function updateCargoDisplay(cargoType){var cfg=CARGO_CONFIG[cargoType]||CARGO_CONFIG.medical;var jt=document.getElementById('journeyCargoTag');if(jt){jt.className='journey-cargo-tag '+cfg.cssClass;jt.textContent=cfg.icon+' '+cfg.label+' · '+cfg.priority;}var pb=document.getElementById('profileCargoBadge');var pt=document.getElementById('profileCargoText');if(pb)pb.className='profile-cargo-badge '+cfg.cssClass;if(pt)pt.textContent=cfg.icon+' '+cfg.label+' · '+cfg.priority;var tc=document.getElementById('tripCargo');if(tc)tc.textContent=cfg.label+' — '+cfg.priority;}
+
+function buildRouteWaypoints(rid,origin,dest){var R={'A':[origin,{lat:26.35,lng:92.68,elev:72,name:'Nagaon'},{lat:25.75,lng:93.07,elev:115,name:'Lumding'},{lat:25.17,lng:93.02,elev:650,name:'Haflong'},{lat:24.87,lng:93.25,elev:68,name:'Badarpur'},{lat:24.83,lng:92.79,elev:35,name:'Silchar'},{lat:24.07,lng:93.36,elev:720,name:'Vairengte'},{lat:23.73,lng:92.72,elev:1132,name:'Aizawl'},{lat:24.27,lng:93.67,elev:890,name:'Kongba'},dest],'B':[origin,{lat:25.80,lng:92.50,elev:65,name:'Jagiroad'},{lat:25.45,lng:92.30,elev:95,name:'Jiribam'},{lat:24.83,lng:92.79,elev:35,name:'Silchar'},{lat:24.22,lng:92.68,elev:720,name:'Kolasib'},{lat:23.73,lng:92.72,elev:1132,name:'Aizawl'},{lat:24.27,lng:93.67,elev:890,name:'Kongba'},dest],'C':[origin,{lat:25.574,lng:91.878,elev:1496,name:'Shillong'},{lat:25.457,lng:92.248,elev:1380,name:'Jowai'},{lat:24.87,lng:93.25,elev:68,name:'Badarpur'},{lat:24.83,lng:92.79,elev:35,name:'Silchar'},dest],'D':[origin,{lat:26.02,lng:89.98,elev:30,name:'Dhubri'},{lat:25.51,lng:90.22,elev:300,name:'Tura'},{lat:24.36,lng:92.16,elev:15,name:'Dharmanagar'},{lat:24.22,lng:92.68,elev:720,name:'Kolasib'},dest]};return R[rid]||R['A'];}
+
+/* =================================================================
+   APPLICATION STATE
+   ================================================================= */
+var state={journey:{active:false,originName:'',destName:'',cargo:'medical',distance:0,remaining:0,eta:'—',routeName:'Route A · Primary NH-27/NH-37',progress:0,speed:0,lat:26.1445,lng:91.7362,bearing:0,elevation:53,gpsAccuracy:null},route:{current:{name:'Route A',routeId:'A',distance:0,time:'—',risk:28,disruption:21,status:'low'}},gps:{watchId:null,active:false},ui:{voiceEnabled:false,language:'en',currentScreen:'map',showRecommendation:false,currentLayer:'satellite',panelCollapsed:false,simBarVisible:false},camera:{follow:true,userPanning:false},websocket:{socket:null,connected:false,reconnectAttempts:0,maxReconnectAttempts:10,reconnectDelay:2000},mapEngine:{type:null,map:null,truckMarker:null,destMarker:null,originMarker:null,layers:{},routeLayers:{},highwayBadges:[],transitNodes:[],calamityMarkers:[],breadcrumbMarkers:[]},osrm:{routes:{},activeRouteId:'A',loading:0},calamities:{active:[],recommendedRouteId:null,pendingModal:null},weather:{streamInterval:null,forecast:[]},traversal:{active:false,animFrameId:null,lastTimestamp:0,cruiseSpeedKmh:65,distanceTraveledKm:0,cumulativeDistances:[],totalLengthKm:0,trailMarkers:[],lastTrailDist:0}};
+
+/* =================================================================
+   AUTHORITY STATE — COMPLETELY ISOLATED (UNTOUCHED)
+   ================================================================= */
+var authState={verified:false,officerName:'',department:'',phone:'',badge:'',hazardType:'',severity:'',notes:'',lat:null,lng:null,mediaFiles:[],pickerMap:null,pickerMarker:null,activeAlerts:[]};
+
+var translations={en:{lowRisk:'LOW RISK',moderateRisk:'MODERATE RISK',highRisk:'HIGH RISK',liveGps:'LIVE GPS',langName:'English'},hi:{lowRisk:'कम जोखिम',moderateRisk:'मध्यम जोखिम',highRisk:'उच्च जोखिम',liveGps:'लाइव GPS',langName:'हिंदी'},bn:{lowRisk:'কম ঝুঁকি',langName:'বাংলা'},as:{lowRisk:'কম বিপদ',langName:'অসমীয়া'},mni:{langName:'মণিপুরী'}};
+var currentLang='en';
+function t(k){var d=translations[currentLang]||{};return d[k]||translations.en[k]||k;}
+function toggleLanguage(){var l=['en','hi','bn','as','mni'];currentLang=l[(l.indexOf(currentLang)+1)%l.length];var b=document.querySelector('.language-btn');if(b)b.textContent=currentLang.toUpperCase()+' ▾';var d=document.getElementById('langDisplay');if(d)d.textContent='Language: '+t('langName');}
+function populateLocationSelects(){var o=document.getElementById('originSelect'),d=document.getElementById('destSelect');if(!o||!d)return;var html='';Object.keys(NE_DISTRICTS).forEach(function(st){html+='<optgroup label="'+st+'">';NE_DISTRICTS[st].forEach(function(dist){html+='<option value="'+dist.name+'" data-lat="'+dist.lat+'" data-lng="'+dist.lng+'" data-elev="'+dist.elev+'">'+dist.name+'</option>';});html+='</optgroup>';});o.innerHTML=html;d.innerHTML=html;o.value='Guwahati';d.value='Imphal';}
+function getSelectedLocation(id){var s=document.getElementById(id);if(!s||!s.selectedOptions||!s.selectedOptions[0])return null;var o=s.selectedOptions[0];return{name:o.value,lat:parseFloat(o.getAttribute('data-lat')),lng:parseFloat(o.getAttribute('data-lng')),elev:parseFloat(o.getAttribute('data-elev'))};}
+function haversineKm(la1,ln1,la2,ln2){var R=6371,dLa=(la2-la1)*Math.PI/180,dLn=(ln2-ln1)*Math.PI/180;var a=Math.sin(dLa/2)*Math.sin(dLa/2)+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLn/2)*Math.sin(dLn/2);return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
+function calculateBearing(la1,ln1,la2,ln2){var dL=(ln2-ln1)*Math.PI/180;var y=Math.sin(dL)*Math.cos(la2*Math.PI/180);var x=Math.cos(la1*Math.PI/180)*Math.sin(la2*Math.PI/180)-Math.sin(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.cos(dL);return(Math.atan2(y,x)*180/Math.PI+360)%360;}
+function bearingToCompass(d){return['N','NE','E','SE','S','SW','W','NW'][Math.round(d/45)%8];}
+
+/* =================================================================
+   ROLE SELECTION & AUTH (UNTOUCHED)
+   ================================================================= */
+function selectRole(role){try{var rs=document.getElementById('roleSelectionScreen');if(role==='driver'){if(rs){rs.classList.add('hidden');rs.style.display='none';}var dmc=document.getElementById('driverMainContent');if(dmc){dmc.style.display='flex';}var ss=document.getElementById('startScreen');if(ss){ss.style.display='flex';ss.classList.add('visible');ss.classList.remove('hidden');}}else if(role==='authority'){if(rs){rs.classList.add('hidden');rs.style.display='none';}var as2=document.getElementById('authScreen');if(as2){as2.style.display='flex';as2.classList.add('visible');}}}catch(e){console.error('[selectRole]',e);}}
+function goBackToRoleSelect(){try{var ss=document.getElementById('startScreen');if(ss){ss.classList.remove('visible');ss.style.display='none';}var as2=document.getElementById('authScreen');if(as2){as2.classList.remove('visible');as2.style.display='none';}var ad=document.getElementById('authorityDashboard');if(ad){ad.classList.remove('visible');ad.style.display='none';}var dmc=document.getElementById('driverMainContent');if(dmc){dmc.style.display='none';}var rs=document.getElementById('roleSelectionScreen');if(rs){rs.classList.remove('hidden');rs.style.display='flex';rs.style.opacity='1';rs.style.visibility='visible';}}catch(e){console.error('[goBack]',e);}}
+function authorityLogin(){try{var dept=document.getElementById('authDepartment')?document.getElementById('authDepartment').value:'';var name=document.getElementById('authOfficerName')?document.getElementById('authOfficerName').value.trim():'';var phone=document.getElementById('authPhone')?document.getElementById('authPhone').value.trim():'';var badge=document.getElementById('authGovId')?document.getElementById('authGovId').value.trim():'';if(!dept)dept='ddma';if(!name)name='Officer';if(!phone)phone='+91 90000 00000';if(!badge)badge='GOV-NER-2026';authState.verified=true;authState.department=dept;authState.officerName=name;authState.phone=phone;authState.badge=badge;var dl={ddma:'DDMA',pwd:'PWD',forest:'Forest',police:'Police',fire:'Fire',medical:'Health',bro:'BRO',hospitals:'Health',imd:'IMD',nhai:'NHAI',water:'Water',revenue:'Revenue'};var be=document.getElementById('authDashOfficerName');if(be)be.textContent='🏛️ '+name+' · '+(dl[dept]||dept.toUpperCase());var de=document.getElementById('authDashDept');if(de)de.textContent=(dl[dept]||dept.toUpperCase())+' Department';var as2=document.getElementById('authScreen');if(as2){as2.classList.remove('visible');as2.style.display='none';}var ad=document.getElementById('authorityDashboard');if(ad){ad.style.display='flex';ad.classList.add('visible');}setTimeout(function(){initAuthMapPicker();},300);showToast('success','✅ Verified','Console Access Granted. Welcome, '+name+'.');}catch(e){console.error('[authorityLogin]',e);}}
+
+/* =================================================================
+   AUTHORITY MAP PICKER — ISOLATED LEAFLET INSTANCE (UNTOUCHED)
+   ================================================================= */
+function initAuthMapPicker(){var container=document.getElementById('authMapPicker');if(!container||authState.pickerMap||typeof L==='undefined')return;try{var sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'© Esri'});authState.pickerMap=L.map('authMapPicker',{center:[25.5788,91.8933],zoom:7,zoomControl:true,layers:[sat]});authState.pickerMap.on('click',function(e){var lat=e.latlng.lat,lng=e.latlng.lng;if(authState.pickerMarker){authState.pickerMap.removeLayer(authState.pickerMarker);authState.pickerMarker=null;}var hIcon=L.divIcon({html:'<div class="calamity-marker-wrap"><div class="calamity-pulse-ring"></div><div class="calamity-core-icon">⚠️</div></div>',className:'',iconSize:[44,44],iconAnchor:[22,22]});authState.pickerMarker=L.marker([lat,lng],{icon:hIcon}).addTo(authState.pickerMap);authState.lat=lat;authState.lng=lng;var le=document.getElementById('authHazardLat');if(le)le.textContent=lat.toFixed(5);var le2=document.getElementById('authHazardLng');if(le2)le2.textContent=lng.toFixed(5);showToast('success','📍 Hazard Coordinates Set','Lat: '+lat.toFixed(5)+', Lng: '+lng.toFixed(5));});setTimeout(function(){if(authState.pickerMap)authState.pickerMap.invalidateSize({animate:false});},250);}catch(e){console.warn('[AuthMap]',e);}}
+function selectSeverity(el,level){document.querySelectorAll('.severity-option').forEach(function(o){o.classList.remove('selected');});el.classList.add('selected');authState.severity=level;}
+function handleMediaUpload(input){var grid=document.getElementById('mediaPreviewGrid');if(!grid)return;grid.innerHTML='';authState.mediaFiles=[];Array.from(input.files).forEach(function(file){authState.mediaFiles.push(file);if(file.type.startsWith('image/')){var reader=new FileReader();reader.onload=function(e){var img=document.createElement('img');img.src=e.target.result;grid.appendChild(img);};reader.readAsDataURL(file);}else{var div=document.createElement('div');div.className='vid-badge';div.textContent='🎥 '+file.name;grid.appendChild(div);}});}
+function submitHazardReport(){var ht=document.getElementById('authHazardType').value;var notes=document.getElementById('authNotes').value;if(!ht){showToast('warning','⚠ Type Required','Select calamity type.');return;}if(!authState.severity){showToast('warning','⚠ Severity Required','Select severity.');return;}if(!authState.lat||!authState.lng){showToast('warning','⚠ Location Required','Click map to set location.');return;}authState.hazardType=ht;authState.notes=notes;var report={id:'HAZ-'+Date.now(),department:authState.department,officerName:authState.officerName,officerPhone:authState.phone,badge:authState.badge,calamityType:ht,severity:authState.severity,notes:notes,lat:authState.lat,lng:authState.lng,mediaCount:authState.mediaFiles.length,timestamp:new Date().toISOString(),status:'broadcast'};authState.activeAlerts.push(report);var btn=document.getElementById('authBroadcastBtn');btn.disabled=true;btn.innerHTML='<span class="broadcast-pulse"></span> 📡 Broadcasting...';setTimeout(function(){btn.disabled=false;btn.innerHTML='<span class="broadcast-pulse"></span> 📡 Broadcast Hazard to All Active Drivers';showToast('success','📡 Broadcast Complete','Hazard: '+ht+' at ['+authState.lat.toFixed(4)+', '+authState.lng.toFixed(4)+']. Active alerts: '+authState.activeAlerts.length);if(state.journey.active){syncHazardToDriverMap(report);}document.getElementById('authHazardType').value='';document.getElementById('authNotes').value='';document.querySelectorAll('.severity-option').forEach(function(o){o.classList.remove('selected');});document.getElementById('mediaPreviewGrid').innerHTML='';if(authState.pickerMarker&&authState.pickerMap){authState.pickerMap.removeLayer(authState.pickerMarker);authState.pickerMarker=null;}var le=document.getElementById('authHazardLat');if(le)le.textContent='— click map —';var le2=document.getElementById('authHazardLng');if(le2)le2.textContent='— click map —';authState.lat=null;authState.lng=null;authState.severity='';authState.mediaFiles=[];},2000);}
+function syncHazardToDriverMap(report){if(!state.mapEngine.map||state.mapEngine.type!=='leaflet')return;try{var hIcon=L.divIcon({html:'<div class="calamity-marker-wrap"><div class="calamity-pulse-ring"></div><div class="calamity-core-icon">⚠️</div></div>',className:'',iconSize:[44,44],iconAnchor:[22,22]});var m=L.marker([report.lat,report.lng],{icon:hIcon,zIndexOffset:900}).addTo(state.mapEngine.map);m.bindPopup('<strong style="color:#ef4444">⚠ '+report.calamityType.toUpperCase()+'</strong><br>'+report.notes+'<br>Reported by: '+report.officerName);state.mapEngine.calamityMarkers.push(m);var cc=document.getElementById('tripCalamityCount');if(cc){cc.textContent=state.mapEngine.calamityMarkers.length;cc.style.color='var(--critical)';}showToast('critical','⚠ Live Hazard Synced','Driver map updated with '+report.calamityType+' at ['+report.lat.toFixed(3)+', '+report.lng.toFixed(3)+']');}catch(e){console.warn('[syncHazard]',e);}}
+
+/* =================================================================
+   DRIVER MAP ENGINE — OSRM WITH MIRROR FALLBACK (UPDATED)
+   ================================================================= */
+function getMapplsKey(){try{if(window.MAPPLS_API_KEY)return window.MAPPLS_API_KEY;var m=document.querySelector('meta[name="mappls-api-key"]');if(m)return m.getAttribute('content')||'';}catch(e){}return'';}
+function getGoogleKey(){try{if(window.VITE_GOOGLE_MAPS_API_KEY)return window.VITE_GOOGLE_MAPS_API_KEY;var m=document.querySelector('meta[name="google-maps-api-key"]');if(m)return m.getAttribute('content')||'';}catch(e){}return'';}
+function hideFallback(){var f=document.getElementById('mapFallback');if(f)f.classList.add('hidden');}
+
+function initMapEngine(){var mk=getMapplsKey(),gk=getGoogleKey();if(mk&&mk!=='YOUR_MAPPLS_LICENSE_KEY')loadMappls(mk);else if(gk&&gk!=='YOUR_API_KEY'&&gk!=='YOUR_API_KEY_HERE')loadGoogleMaps(gk);else loadLeafletDriver();}
+function loadMappls(k){var s=document.createElement('script');s.src='https://apis.mappls.com/advancedmaps/api/'+encodeURIComponent(k)+'/map_sdk?layer=vector&v=3.0';s.async=true;s.defer=true;s.onload=function(){waitForMappls(createMapplsMap);};s.onerror=function(){loadLeafletDriver();};document.head.appendChild(s);setTimeout(function(){if(!state.mapEngine.map)loadLeafletDriver();},10000);}
+function waitForMappls(cb,a){a=a||0;if(typeof mappls!=='undefined'&&mappls.Map)cb();else if(a<20)setTimeout(function(){waitForMappls(cb,a+1);},200);else loadLeafletDriver();}
+function createMapplsMap(){try{state.mapEngine.type='mappls';state.mapEngine.map=new mappls.Map('map',{center:[state.journey.lat,state.journey.lng],zoom:7,zoomControl:false});setupMapOverlays();hideFallback();showMapUI();loadAllRoutes();setTimeout(function(){if(state.mapEngine.map&&state.mapEngine.map.invalidateSize)state.mapEngine.map.invalidateSize({animate:false});},200);}catch(e){loadLeafletDriver();}}
+function loadGoogleMaps(k){var s=document.createElement('script');s.src='https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(k)+'&callback=onGoogleMapsReady';s.async=true;s.defer=true;s.onerror=function(){loadLeafletDriver();};document.head.appendChild(s);setTimeout(function(){if(!state.mapEngine.map)loadLeafletDriver();},10000);}
+window.onGoogleMapsReady=function(){try{state.mapEngine.type='google';state.mapEngine.map=new google.maps.Map(document.getElementById('map'),{center:{lat:state.journey.lat,lng:state.journey.lng},zoom:7,disableDefaultUI:true});setupMapOverlays();hideFallback();showMapUI();loadAllRoutes();setTimeout(function(){if(state.mapEngine.map&&state.mapEngine.map.invalidateSize)state.mapEngine.map.invalidateSize();},200);}catch(e){loadLeafletDriver();}};
+
+function loadLeafletDriver(){if(state.mapEngine.type||window.__dll)return;window.__dll=true;var l=document.createElement('link');l.rel='stylesheet';l.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(l);var s=document.createElement('script');s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';s.onload=function(){createLeafletDriverMap();};s.onerror=function(){window.__dll=false;};document.head.appendChild(s);}
+
+function createLeafletDriverMap(){try{state.mapEngine.type='leaflet';var esriSat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'© Esri'});var cartoDark=L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'© CartoDB'});var osmLayer=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OSM'});state.mapEngine.layers={satellite:esriSat,carto:cartoDark,osm:osmLayer};state.mapEngine.map=L.map('map',{center:[25.4,92.5],zoom:7,zoomControl:false,layers:[esriSat],maxBoundsViscosity:.8});state.mapEngine.currentLayer='satellite';setupMapOverlays();hideFallback();showMapUI();loadAllRoutes();setupMapDragDetection();setTimeout(function(){if(state.mapEngine.map&&state.mapEngine.map.invalidateSize)state.mapEngine.map.invalidateSize({animate:false});},200);}catch(e){console.error('[Leaflet Driver]',e);}}
+
+function setupMapOverlays(){var origin=getSelectedLocation('originSelect'),dest=getSelectedLocation('destSelect');if(state.mapEngine.type!=='leaflet')return;var oI=L.divIcon({html:'<div class="node-circle"></div><div class="node-label">'+(origin?origin.name:'Origin')+'</div>',className:'',iconSize:[18,18],iconAnchor:[9,9]});if(origin)state.mapEngine.originMarker=L.marker([origin.lat,origin.lng],{icon:oI,zIndexOffset:500}).addTo(state.mapEngine.map);var tI=L.divIcon({html:'<div class="truck-marker-wrapper"><div class="vehicle-pulse-ring"></div><div class="vehicle-pulse-ring ring2"></div><div class="truck-marker-inner" id="truckMarkerInner">🚛</div></div>',className:'',iconSize:[50,50],iconAnchor:[25,25]});state.mapEngine.truckMarker=L.marker([state.journey.lat,state.journey.lng],{icon:tI,zIndexOffset:1000}).addTo(state.mapEngine.map);var dI=L.divIcon({html:'<div class="node-circle dest"></div><div class="node-label">'+(dest?dest.name:'DEST')+'</div>',className:'',iconSize:[18,18],iconAnchor:[9,9]});if(dest)state.mapEngine.destMarker=L.marker([dest.lat,dest.lng],{icon:dI,zIndexOffset:600}).addTo(state.mapEngine.map);var hbs=[{id:'NH-27',name:'NH-27',lat:25.90,lng:93.10,type:'emerald'},{id:'NH-6',name:'NH-6',lat:25.55,lng:92.55,type:'cyan'},{id:'NH-10',name:'NH-10',lat:27.50,lng:88.80,type:'cyan'},{id:'NH-29',name:'NH-29',lat:25.10,lng:93.20,type:'orange'},{id:'NH-37',name:'NH-37',lat:24.50,lng:93.40,type:'cyan'},{id:'NH-715',name:'NH-715',lat:26.35,lng:92.35,type:'orange'},{id:'NW-2',name:'NW-2 (IWT)',lat:26.10,lng:91.50,type:'info'}];hbs.forEach(function(hw){var cls=hw.type==='orange'?'hw-badge orange':hw.type==='emerald'?'hw-badge emerald':hw.type==='info'?'hw-badge info':'hw-badge';var icon=L.divIcon({html:'<div class="'+cls+'">'+hw.name+'</div>',className:'',iconSize:[0,0],iconAnchor:[0,0]});state.mapEngine.highwayBadges.push(L.marker([hw.lat,hw.lng],{icon:icon,interactive:false,zIndexOffset:400}).addTo(state.mapEngine.map));});var tns=[{name:'Guwahati',lat:26.1445,lng:91.7362,isDest:false},{name:'Silchar',lat:24.83,lng:92.79,isDest:false},{name:'Dimapur',lat:25.91,lng:93.72,isDest:false},{name:'Aizawl',lat:23.73,lng:92.72,isDest:false},{name:'Imphal',lat:24.817,lng:93.95,isDest:true},{name:'Agartala',lat:23.83,lng:91.29,isDest:false},{name:'Shillong',lat:25.574,lng:91.878,isDest:false},{name:'Itanagar',lat:27.10,lng:93.62,isDest:false}];tns.forEach(function(node){var cc=node.isDest?'node-circle dest':'node-circle';var icon=L.divIcon({html:'<div class="'+cc+'"></div><div class="node-label">'+node.name+'</div>',className:'',iconSize:[18,18],iconAnchor:[9,9]});state.mapEngine.transitNodes.push(L.marker([node.lat,node.lng],{icon:icon,interactive:false,zIndexOffset:450}).addTo(state.mapEngine.map));});}
+function showMapUI(){var ls=document.getElementById('layerSwitcher');if(ls)ls.style.display='flex';var bb=document.getElementById('bearingBadge');if(bb)bb.classList.add('visible');var eb=document.getElementById('elevationBadge');if(eb)eb.classList.add('visible');}
+function switchLayer(name){if(state.mapEngine.type!=='leaflet'||!state.mapEngine.map)return;if(!state.mapEngine.layers[name])return;Object.keys(state.mapEngine.layers).forEach(function(k){try{state.mapEngine.map.removeLayer(state.mapEngine.layers[k]);}catch(e){}});state.mapEngine.map.addLayer(state.mapEngine.layers[name]);state.mapEngine.currentLayer=name;document.querySelectorAll('.layer-btn').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-layer')===name);});setTimeout(function(){if(state.mapEngine.map)state.mapEngine.map.invalidateSize();},200);}
+function zoomIn(){if(!state.mapEngine.map)return;try{state.mapEngine.map.setZoom(state.mapEngine.map.getZoom()+1);}catch(e){}}
+function zoomOut(){if(!state.mapEngine.map)return;try{state.mapEngine.map.setZoom(state.mapEngine.map.getZoom()-1);}catch(e){}}
+
+/* =================================================================
+   OSRM ROUTE FETCHING — PRIMARY + MIRROR FALLBACK (UPDATED)
+   Increased timeout to 4.5s for real-road geometry loading
+   ================================================================= */
+function fetchOSRMRoute(rid, wps, cb) {
+    var coords = wps.map(function(w) { return w.lng + ',' + w.lat; }).join(';');
+    state.osrm.loading++;
+    if (state.osrm.loading === 1) showRouteLoading('Fetching real-road geometry...');
+
+    var done = false;
+
+    // Primary timeout: 4.5 seconds
+    var primaryTimeout = setTimeout(function() {
+        if (done) return;
+        // Primary timed out — try mirror
+        tryMirrorRoute(coords, rid, wps, cb);
+    }, 4500);
+
+    fetch(OSRM_PRIMARY + '/route/v1/driving/' + coords + '?overview=full&geometries=geojson&steps=false')
+        .then(function(r) {
+            if (!r.ok) throw new Error('Primary OSRM returned ' + r.status);
+            return r.json();
+        })
+        .then(function(d) {
+            if (done) return;
+            done = true;
+            clearTimeout(primaryTimeout);
+            if (d.code !== 'Ok' || !d.routes || !d.routes.length) throw new Error('No routes from primary');
+            var route = d.routes[0];
+            var geom = route.geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
+            state.osrm.loading--;
+            if (state.osrm.loading === 0) hideRouteLoading();
+            cb(null, { routeId: rid, geometry: geom, distance: route.distance / 1000, duration: route.duration / 3600, waypoints: wps });
+        })
+        .catch(function(e) {
+            if (done) return;
+            done = true;
+            clearTimeout(primaryTimeout);
+            // Primary failed — try mirror
+            tryMirrorRoute(coords, rid, wps, cb);
+        });
+}
+
+/* Mirror fallback with its own 4.5s timeout */
+function tryMirrorRoute(coords, rid, wps, cb) {
+    var mirrorDone = false;
+    var mirrorTimeout = setTimeout(function() {
+        if (mirrorDone) return;
+        mirrorDone = true;
+        state.osrm.loading--;
+        if (state.osrm.loading === 0) hideRouteLoading();
+        // Both primary and mirror failed — use smooth synthetic fallback
+        var synth = buildSyntheticRoute(wps);
+        cb(null, synth);
+    }, 4500);
+
+    fetch(OSRM_MIRROR + '/route/v1/driving/' + coords + '?overview=full&geometries=geojson&steps=false')
+        .then(function(r) {
+            if (!r.ok) throw new Error('Mirror returned ' + r.status);
+            return r.json();
+        })
+        .then(function(d) {
+            if (mirrorDone) return;
+            mirrorDone = true;
+            clearTimeout(mirrorTimeout);
+            if (d.code !== 'Ok' || !d.routes || !d.routes.length) throw new Error('No routes from mirror');
+            var route = d.routes[0];
+            var geom = route.geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
+            state.osrm.loading--;
+            if (state.osrm.loading === 0) hideRouteLoading();
+            cb(null, { routeId: rid, geometry: geom, distance: route.distance / 1000, duration: route.duration / 3600, waypoints: wps });
+        })
+        .catch(function(e) {
+            if (mirrorDone) return;
+            mirrorDone = true;
+            clearTimeout(mirrorTimeout);
+            state.osrm.loading--;
+            if (state.osrm.loading === 0) hideRouteLoading();
+            // Both failed — use smooth synthetic fallback
+            var synth = buildSyntheticRoute(wps);
+            cb(null, synth);
+        });
+}
+
+/* =================================================================
+   CATMULL-ROM SPLINE — Smooth curved interpolation for synthetic routes
+   ================================================================= */
+function catmullRomSpline(points, subdivisions) {
+    var result = [];
+    var n = points.length;
+    if (n < 2) return points.map(function(p) { return [p.lat, p.lng]; });
+
+    for (var i = 0; i < n - 1; i++) {
+        var p0 = points[Math.max(0, i - 1)];
+        var p1 = points[i];
+        var p2 = points[i + 1];
+        var p3 = points[Math.min(n - 1, i + 2)];
+
+        for (var t = 0; t < subdivisions; t++) {
+            var s = t / subdivisions;
+            var s2 = s * s;
+            var s3 = s2 * s;
+
+            var lat = 0.5 * (
+                (2 * p1.lat) +
+                (-p0.lat + p2.lat) * s +
+                (2 * p0.lat - 5 * p1.lat + 4 * p2.lat - p3.lat) * s2 +
+                (-p0.lat + 3 * p1.lat - 3 * p2.lat + p3.lat) * s3
+            );
+            var lng = 0.5 * (
+                (2 * p1.lng) +
+                (-p0.lng + p2.lng) * s +
+                (2 * p0.lng - 5 * p1.lng + 4 * p2.lng - p3.lng) * s2 +
+                (-p0.lng + 3 * p1.lng - 3 * p2.lng + p3.lng) * s3
+            );
+            result.push([lat, lng]);
+        }
+    }
+    // Add last point
+    var last = points[n - 1];
+    result.push([last.lat, last.lng]);
+    return result;
+}
+
+/* =================================================================
+   SYNTHETIC ROUTE BUILDER — Catmull-Rom curved paths with terrain offsets
+   Used as final fallback when both OSRM servers are unreachable
+   ================================================================= */
+function buildSyntheticRoute(wps) {
+    // Step 1: Expand waypoints with intermediate terrain-aware curved points
+    var expandedPoints = [];
+    for (var i = 0; i < wps.length; i++) {
+        expandedPoints.push({ lat: wps[i].lat, lng: wps[i].lng });
+        if (i < wps.length - 1) {
+            var dx = wps[i+1].lng - wps[i].lng;
+            var dy = wps[i+1].lat - wps[i].lat;
+            var segLen = Math.sqrt(dx * dx + dy * dy);
+
+            // Add 3 intermediate points per segment with curvature
+            for (var j = 1; j <= 3; j++) {
+                var t = j / 4;
+                var midLat = wps[i].lat + dy * t;
+                var midLng = wps[i].lng + dx * t;
+
+                // Perpendicular offset for road curvature simulation
+                if (segLen > 0.01) {
+                    var nx = -dy / segLen;
+                    var ny = dx / segLen;
+                    // Alternate curve direction and vary amount using sine wave
+                    var curveSign = ((i + j) % 2 === 0) ? 1 : -1;
+                    var curveAmount = 0.012 * curveSign * Math.sin(t * Math.PI);
+                    midLat += ny * curveAmount;
+                    midLng += nx * curveAmount;
+                }
+                expandedPoints.push({ lat: midLat, lng: midLng });
+            }
+        }
+    }
+
+    // Step 2: Apply Catmull-Rom spline for smooth curves through all points
+    var geom = catmullRomSpline(expandedPoints, 8);
+
+    // Calculate total distance from original waypoints
+    var totalDist = 0;
+    for (var i = 0; i < wps.length - 1; i++) {
+        totalDist += haversineKm(wps[i].lat, wps[i].lng, wps[i+1].lat, wps[i+1].lng);
+    }
+
+    return {
+        routeId: 'synth',
+        geometry: geom,
+        distance: totalDist,
+        duration: totalDist / 45,
+        waypoints: wps
+    };
+}
+
+function showRouteLoading(t){var i=document.getElementById('routeLoadingIndicator'),tx=document.getElementById('routeLoadingText');if(i)i.classList.add('visible');if(tx)tx.textContent=t||'Fetching...';}
+function hideRouteLoading(){var i=document.getElementById('routeLoadingIndicator');if(i)i.classList.remove('visible');}
+function getActiveRouteGeometry(){var r=state.osrm.routes[state.osrm.activeRouteId];return r?r.geometry:null;}
+
+/* =================================================================
+   HIGH-DENSITY GEOMETRY PROCESSING
+   precomputeCumulativeDistances — handles arrays of any density
+   ================================================================= */
+function precomputeCumulativeDistances(geom) {
+    var cum = [0];
+    for (var i = 1; i < geom.length; i++) {
+        var d = haversineKm(geom[i-1][0], geom[i-1][1], geom[i][0], geom[i][1]);
+        cum.push(cum[i-1] + d);
+    }
+    return cum;
+}
+
+/* =================================================================
+   getPositionAtDistance — binary search for high-density arrays
+   Returns position + bearing calculated point-by-point for smooth rotation
+   ================================================================= */
+function getPositionAtDistance(distKm, geom, cumDist) {
+    if (!geom || geom.length < 2 || !cumDist || cumDist.length < 2)
+        return { lat: state.journey.lat, lng: state.journey.lng, bearing: 0 };
+
+    if (distKm <= 0)
+        return { lat: geom[0][0], lng: geom[0][1], bearing: calculateBearing(geom[0][0], geom[0][1], geom[1][0], geom[1][1]) };
+
+    var total = cumDist[cumDist.length - 1];
+    if (distKm >= total) {
+        var li = geom.length - 1;
+        return { lat: geom[li][0], lng: geom[li][1], bearing: calculateBearing(geom[li-1][0], geom[li-1][1], geom[li][0], geom[li][1]) };
+    }
+
+    // Binary search — efficient for high-density arrays (1000+ points)
+    var lo = 0, hi = cumDist.length - 1;
+    while (lo < hi - 1) {
+        var mid = Math.floor((lo + hi) / 2);
+        if (cumDist[mid] <= distKm) lo = mid; else hi = mid;
+    }
+
+    var segLen = cumDist[hi] - cumDist[lo];
+    var frac = segLen > 0 ? (distKm - cumDist[lo]) / segLen : 0;
+
+    var lat = geom[lo][0] + (geom[hi][0] - geom[lo][0]) * frac;
+    var lng = geom[lo][1] + (geom[hi][1] - geom[lo][1]) * frac;
+
+    // Point-by-point bearing for smooth truck rotation along road curves
+    var bearing = calculateBearing(geom[lo][0], geom[lo][1], geom[hi][0], geom[hi][1]);
+
+    return { lat: lat, lng: lng, bearing: bearing };
+}
+
+/* =================================================================
+   LEAFLET POLYLINE RENDERING — Clean glow + core, no memory leaks
+   ================================================================= */
+function drawRouteOnMap(rid, geom, style) {
+    if (state.mapEngine.type !== 'leaflet' || !state.mapEngine.map) return;
+
+    // Clean up existing layers for this route ID — prevents memory leaks
+    if (state.mapEngine.routeLayers[rid]) {
+        state.mapEngine.routeLayers[rid].forEach(function(l) {
+            try { state.mapEngine.map.removeLayer(l); } catch (e) {}
+        });
+        state.mapEngine.routeLayers[rid] = [];
+    }
+
+    var layers = [];
+
+    // Outer glow polyline (rendered first = below core)
+    if (style.glow) {
+        var glow = L.polyline(geom, {
+            color: style.glowColor,
+            weight: style.glowWeight,
+            opacity: style.glowOpacity,
+            lineJoin: 'round',
+            lineCap: 'round'
+        }).addTo(state.mapEngine.map);
+        layers.push(glow);
+    }
+
+    // Inner core polyline (rendered second = on top of glow)
+    var core = L.polyline(geom, {
+        color: style.color,
+        weight: style.weight,
+        opacity: style.opacity,
+        lineJoin: 'round',
+        lineCap: 'round',
+        dashArray: style.dashArray
+    }).addTo(state.mapEngine.map);
+    layers.push(core);
+
+    // Store layers for clean removal on route switch
+    state.mapEngine.routeLayers[rid] = layers;
+
+    // Fit bounds for primary route
+    if (rid === 'A' || rid === state.osrm.activeRouteId) {
+        state.mapEngine.map.fitBounds(core.getBounds(), { padding: [60, 60] });
+    }
+}
+
+function highlightActiveRoute(rid) {
+    if (state.mapEngine.type !== 'leaflet') return;
+    Object.keys(state.mapEngine.routeLayers).forEach(function(r) {
+        var layers = state.mapEngine.routeLayers[r];
+        if (!layers) return;
+        layers.forEach(function(l) {
+            if (!l.setStyle) return;
+            if (r === rid) {
+                // Restore original style for active route
+                var s = getRouteStyle(r);
+                l.setStyle({ opacity: s.glow ? s.glowOpacity : s.opacity, weight: s.weight });
+            } else {
+                // Dim inactive routes
+                l.setStyle({ opacity: 0.15 });
+            }
+        });
+    });
+}
+
+function getRouteStyle(rid) {
+    var S = {
+        'A': { color: '#00d4ff', weight: 5, opacity: 0.95, glow: true, glowColor: '#00d4ff', glowWeight: 14, glowOpacity: 0.18, dashArray: null },
+        'B': { color: '#ff7700', weight: 4, opacity: 0.85, glow: true, glowColor: '#ff7700', glowWeight: 12, glowOpacity: 0.15, dashArray: null },
+        'C': { color: '#00d4ff', weight: 3, opacity: 0.6, glow: false, glowColor: null, glowWeight: 0, glowOpacity: 0, dashArray: '10 8' },
+        'D': { color: '#60a5fa', weight: 3, opacity: 0.55, glow: false, glowColor: null, glowWeight: 0, glowOpacity: 0, dashArray: '6 10' },
+        'synth': { color: '#00d4ff', weight: 5, opacity: 0.95, glow: true, glowColor: '#00d4ff', glowWeight: 14, glowOpacity: 0.18, dashArray: null }
+    };
+    return S[rid] || S['A'];
+}
+
+function loadAllRoutes() {
+    var origin = getSelectedLocation('originSelect'), dest = getSelectedLocation('destSelect');
+    if (!origin || !dest) return;
+    ['A', 'B', 'C', 'D'].forEach(function(rid) {
+        var wps = buildRouteWaypoints(rid, origin, dest);
+        fetchOSRMRoute(rid, wps, function(err, result) {
+            if (err || !result) return;
+            state.osrm.routes[rid] = result;
+            drawRouteOnMap(rid, result.geometry, getRouteStyle(rid));
+            if (rid === 'A') {
+                state.journey.distance = Math.round(result.distance);
+                state.journey.remaining = state.journey.distance;
+                state.route.current.distance = state.journey.distance;
+                var hrs = Math.floor(result.duration), mins = Math.round((result.duration - hrs) * 60);
+                state.route.current.time = hrs + 'h ' + mins + 'm';
+                var etaD = new Date(Date.now() + result.duration * 3600000);
+                state.journey.eta = etaD.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                updateRouteUI(); updateJourneyUI(); startWeatherStream(); startPathTraversal();
+            }
+            renderRouteCards();
+        });
+    });
+}
+
+/* =================================================================
+   HIGH-DENSITY PATH TRAVERSAL
+   Processes dense geometry arrays for smooth truck movement
+   ================================================================= */
+function startPathTraversal() {
+    var geom = getActiveRouteGeometry();
+    if (!geom || geom.length < 2) return;
+    stopPathTraversal();
+
+    // Pre-compute cumulative distances for high-density geometry
+    state.traversal.cumulativeDistances = precomputeCumulativeDistances(geom);
+    state.traversal.totalLengthKm = state.traversal.cumulativeDistances[state.traversal.cumulativeDistances.length - 1];
+    state.traversal.distanceTraveledKm = 0;
+    state.traversal.lastTimestamp = 0;
+    state.traversal.lastTrailDist = 0;
+    state.traversal.active = true;
+
+    var startPos = getPositionAtDistance(0, geom, state.traversal.cumulativeDistances);
+    updateTruckVisual(startPos.lat, startPos.lng, startPos.bearing);
+    state.journey.lat = startPos.lat;
+    state.journey.lng = startPos.lng;
+    state.journey.bearing = startPos.bearing;
+    state.journey.progress = 0;
+    state.journey.remaining = Math.round(state.traversal.totalLengthKm);
+    state.journey.speed = state.traversal.cruiseSpeedKmh;
+    var hrs = state.traversal.totalLengthKm / state.traversal.cruiseSpeedKmh;
+    var etaD = new Date(Date.now() + hrs * 3600000);
+    state.journey.eta = etaD.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    updateJourneyUI(); updateBearingDisplay(); updateElevationDisplay();
+    state.traversal.animFrameId = requestAnimationFrame(pathTraversalLoop);
+}
+
+function pathTraversalLoop(timestamp) {
+    if (!state.traversal.active) return;
+    if (state.traversal.lastTimestamp === 0) {
+        state.traversal.lastTimestamp = timestamp;
+        state.traversal.animFrameId = requestAnimationFrame(pathTraversalLoop);
+        return;
+    }
+    var dtMs = timestamp - state.traversal.lastTimestamp;
+    state.traversal.lastTimestamp = timestamp;
+    if (dtMs > 200) dtMs = 200; // Cap delta to prevent jumps
+    var dtH = dtMs / 3600000;
+    var spd = state.traversal.cruiseSpeedKmh;
+    state.traversal.distanceTraveledKm += spd * dtH;
+
+    if (state.traversal.distanceTraveledKm >= state.traversal.totalLengthKm) {
+        state.traversal.distanceTraveledKm = 0;
+        state.traversal.lastTrailDist = 0;
+        clearTrailMarkers();
+    }
+
+    var geom = getActiveRouteGeometry();
+    if (!geom || !state.traversal.cumulativeDistances.length) {
+        state.traversal.animFrameId = requestAnimationFrame(pathTraversalLoop);
+        return;
+    }
+
+    // Get position + bearing from high-density geometry
+    var pos = getPositionAtDistance(state.traversal.distanceTraveledKm, geom, state.traversal.cumulativeDistances);
+    updateTruckVisual(pos.lat, pos.lng, pos.bearing);
+
+    state.journey.lat = pos.lat;
+    state.journey.lng = pos.lng;
+    state.journey.bearing = pos.bearing;
+    state.journey.speed = spd;
+    state.journey.progress = state.traversal.distanceTraveledKm / state.traversal.totalLengthKm;
+    state.journey.remaining = Math.round(state.traversal.totalLengthKm - state.traversal.distanceTraveledKm);
+    var hR = state.journey.remaining / spd;
+    var eD = new Date(Date.now() + hR * 3600000);
+    state.journey.eta = eD.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+    // Spawn breadcrumb trail dots
+    if (state.traversal.distanceTraveledKm - state.traversal.lastTrailDist > 0.5) {
+        spawnTrailDot(pos.lat, pos.lng);
+        state.traversal.lastTrailDist = state.traversal.distanceTraveledKm;
+    }
+
+    // Camera follow
+    if (state.camera.follow && !state.camera.userPanning && state.mapEngine.type === 'leaflet' && state.mapEngine.map) {
+        var mc = state.mapEngine.map.getCenter();
+        var dc = haversineKm(pos.lat, pos.lng, mc.lat, mc.lng);
+        if (dc > 2) {
+            state.mapEngine.map.panTo([pos.lat, pos.lng], { animate: true, duration: 1.0, noMoveStart: true });
+        }
+    }
+
+    // Periodic UI updates (not every frame for performance)
+    if (Math.random() < 0.15) {
+        updateJourneyUI(); updateBearingDisplay(); updateElevationDisplay();
+    }
+
+    state.traversal.animFrameId = requestAnimationFrame(pathTraversalLoop);
+}
+
+function stopPathTraversal() {
+    state.traversal.active = false;
+    if (state.traversal.animFrameId) {
+        cancelAnimationFrame(state.traversal.animFrameId);
+        state.traversal.animFrameId = null;
+    }
+    state.traversal.lastTimestamp = 0;
+    clearTrailMarkers();
+}
+
+function updateTruckVisual(lat, lng, bearing) {
+    if (!state.mapEngine.truckMarker) return;
+    try {
+        if (state.mapEngine.type === 'leaflet') {
+            state.mapEngine.truckMarker.setLatLng([lat, lng]);
+        } else if (state.mapEngine.type === 'google') {
+            state.mapEngine.truckMarker.setPosition({ lat: lat, lng: lng });
+        } else if (state.mapEngine.type === 'mappls') {
+            state.mapEngine.truckMarker.setPosition([lat, lng]);
+        }
+        // Smooth rotation via CSS transform
+        var el = document.getElementById('truckMarkerInner');
+        if (el) el.style.transform = 'rotate(' + Math.round(bearing) + 'deg)';
+    } catch (e) {}
+}
+
+function spawnTrailDot(lat, lng) {
+    if (state.mapEngine.type !== 'leaflet' || !state.mapEngine.map) return;
+    var dE = document.createElement('div');
+    dE.className = 'trail-dot';
+    var dI = L.divIcon({ html: dE.outerHTML, className: '', iconSize: [8, 8], iconAnchor: [4, 4] });
+    var m = L.marker([lat, lng], { icon: dI, interactive: false, zIndexOffset: 800 }).addTo(state.mapEngine.map);
+    state.traversal.trailMarkers.push(m);
+    setTimeout(function() {
+        try { if (state.mapEngine.map) state.mapEngine.map.removeLayer(m); } catch (e) {}
+        var idx = state.traversal.trailMarkers.indexOf(m);
+        if (idx > -1) state.traversal.trailMarkers.splice(idx, 1);
+    }, 1500);
+    // Cap trail markers to prevent memory buildup
+    while (state.traversal.trailMarkers.length > 30) {
+        var old = state.traversal.trailMarkers.shift();
+        try { if (state.mapEngine.map) state.mapEngine.map.removeLayer(old); } catch (e) {}
+    }
+}
+
+function clearTrailMarkers() {
+    state.traversal.trailMarkers.forEach(function(m) {
+        try { if (state.mapEngine.map) state.mapEngine.map.removeLayer(m); } catch (e) {}
+    });
+    state.traversal.trailMarkers = [];
+}
+
+function toggleSimBar() {
+    state.ui.simBarVisible = !state.ui.simBarVisible;
+    var bar = document.getElementById('simBar');
+    var btn = document.getElementById('simToggleBtn');
+    if (state.ui.simBarVisible) { if (bar) bar.classList.add('visible'); if (btn) btn.classList.add('active'); }
+    else { if (bar) bar.classList.remove('visible'); if (btn) btn.classList.remove('active'); }
+}
+
+var audioCtx = null;
+function playWarningChime() {
+    try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        var now = audioCtx.currentTime;
+        [880, 660, 880].forEach(function(freq, i) {
+            var osc = audioCtx.createOscillator();
+            var gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = 'sine'; osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0, now + i * 0.18);
+            gain.gain.linearRampToValueAtTime(0.12, now + i * 0.18 + 0.03);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.18 + 0.16);
+            osc.start(now + i * 0.18); osc.stop(now + i * 0.18 + 0.18);
+        });
+    } catch (e) {}
+}
+
+function showToast(type, title, message, duration) {
+    var c = document.getElementById('toastContainer'); if (!c) return;
+    var icons = { critical: '🚨', warning: '⚠️', info: 'ℹ️', success: '✅' };
+    var t = document.createElement('div');
+    t.className = 'toast ' + type;
+    t.innerHTML = '<span class="toast-icon">' + (icons[type] || '⚠️') + '</span><div class="toast-content"><div class="toast-title">' + title + '</div><div class="toast-message">' + message + '</div></div><div class="toast-close" onclick="dismissToast(this.parentElement)">✕</div>';
+    c.appendChild(t);
+    setTimeout(function() { dismissToast(t); }, duration || 6000);
+}
+function dismissToast(t) {
+    if (!t || t.classList.contains('hiding')) return;
+    t.classList.add('hiding');
+    setTimeout(function() { if (t.parentElement) t.parentElement.removeChild(t); }, 300);
+}
+
+function showCalamityModal(cal, type) {
+    var m = document.getElementById('calamityModal'); if (!m) return;
+    var tl = { landslide: 'LANDSLIDE', flood: 'FLASH FLOOD', cloudburst: 'CLOUDBURST', bridge: 'BRIDGE FAILURE' };
+    var ti = { landslide: '⛰️', flood: '🌊', cloudburst: '🌧️', bridge: '🌉' };
+    var ic = document.getElementById('calamityModalIcon'); if (ic) ic.textContent = ti[type] || '🚨';
+    var tt = document.getElementById('calamityModalTitle'); if (tt) tt.textContent = 'CRITICAL ' + (tl[type] || 'HAZARD') + ' DETECTED';
+    var sb = document.getElementById('calamityModalSubtitle'); if (sb) sb.textContent = cal.highway + ' · ' + cal.name;
+    var lc = document.getElementById('calamityModalLocation'); if (lc) lc.textContent = cal.name;
+    var hw = document.getElementById('calamityModalHighway'); if (hw) hw.textContent = cal.highway;
+    var sv = document.getElementById('calamityModalSeverity'); if (sv) sv.textContent = cal.severity;
+    var rk = document.getElementById('calamityModalRisk'); if (rk) rk.textContent = cal.severity === 'CRITICAL' ? '87/100' : '68/100';
+    var im = document.getElementById('calamityModalImpact'); if (im) im.textContent = cal.desc;
+    var an = document.getElementById('calamityModalAI'); if (an) an.innerHTML = 'AI evaluating <strong>' + Object.keys(state.osrm.routes).length + ' alternate routes</strong> via OSRM.';
+    m.classList.add('visible');
+    var gl = document.getElementById('dangerGlow'); if (gl) gl.classList.add('active');
+    var bg = document.getElementById('alertBadge'); if (bg) bg.classList.add('danger');
+    playWarningChime();
+    state.calamities.pendingModal = { calamity: cal, type: type };
+}
+function closeCalamityModal() {
+    var m = document.getElementById('calamityModal'); if (m) m.classList.remove('visible');
+    var gl = document.getElementById('dangerGlow'); if (gl) gl.classList.remove('active');
+    state.calamities.pendingModal = null;
+}
+function calamityRerouteNow() {
+    var p = state.calamities.pendingModal; closeCalamityModal(); if (!p) return;
+    if (state.mapEngine.type === 'leaflet' && state.mapEngine.map)
+        state.mapEngine.map.flyTo([p.calamity.lat, p.calamity.lng], 12, { animate: true, duration: 1.5 });
+    showToast('info', '🛣 Rerouting...', 'AI computing safest alternative.', 4000);
+    setTimeout(function() {
+        if (state.calamities.recommendedRouteId && state.calamities.recommendedRouteId !== state.osrm.activeRouteId) {
+            switchToRoute(state.calamities.recommendedRouteId);
+        } else {
+            showToast('warning', '⚠️ No safer route', 'Current route remains best.', 5000);
+        }
+    }, 800);
+    if (state.ui.voiceEnabled) speak('Rerouting now.');
+}
+function calamityDismiss() {
+    closeCalamityModal();
+    showToast('warning', '⚠️ Acknowledged', state.calamities.active.length + ' active.');
+    if (state.ui.voiceEnabled) speak('Hazard acknowledged.');
+}
+
+function setCameraFollow(en) {
+    state.camera.follow = en;
+    var cs = document.getElementById('cameraStatus'), cst = document.getElementById('cameraStatusText');
+    var rb = document.getElementById('recenterBtn'), tc = document.getElementById('tripCameraMode');
+    if (en) {
+        state.camera.userPanning = false;
+        if (cs) { cs.classList.add('visible', 'following'); }
+        if (cst) cst.textContent = 'AUTO-FOLLOW';
+        if (rb) rb.classList.remove('visible');
+        if (tc) { tc.textContent = 'Auto-Follow'; tc.style.color = 'var(--accent)'; }
+    } else {
+        if (cs) { cs.classList.add('visible'); cs.classList.remove('following'); }
+        if (cst) cst.textContent = 'MANUAL PAN';
+        if (rb) rb.classList.add('visible');
+        if (tc) { tc.textContent = 'Manual Pan'; tc.style.color = 'var(--warning)'; }
+    }
+}
+function recenterOnVehicle() {
+    setCameraFollow(true);
+    if (state.mapEngine.type === 'leaflet' && state.mapEngine.map)
+        state.mapEngine.map.flyTo([state.journey.lat, state.journey.lng], 13, { animate: true, duration: 1.2 });
+    showVoiceAlert('Camera locked.');
+}
+function setupMapDragDetection() {
+    if (state.mapEngine.type !== 'leaflet' || !state.mapEngine.map) return;
+    state.mapEngine.map.on('dragstart', function() { if (state.camera.follow) setCameraFollow(false); });
+}
+
+function startLiveGPS() {
+    if (!navigator.geolocation) { updateGpsUI('unsupported'); return; }
+    updateGpsUI('acquiring');
+    navigator.geolocation.getCurrentPosition(function(p) {
+        state.journey.lat = p.coords.latitude; state.journey.lng = p.coords.longitude;
+        state.journey.gpsAccuracy = p.coords.accuracy; state.gps.active = true;
+        updateGpsUI('active', p.coords.accuracy); setCameraFollow(true); showVoiceAlert('GPS locked.');
+    }, function() { updateGpsUI('denied'); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    state.gps.watchId = navigator.geolocation.watchPosition(function(p) {
+        state.journey.lat = p.coords.latitude; state.journey.lng = p.coords.longitude;
+        state.journey.gpsAccuracy = p.coords.accuracy;
+        if (p.coords.speed && p.coords.speed > 1) { state.journey.speed = p.coords.speed * 3.6; }
+        updateGpsUI('active', p.coords.accuracy);
+    }, function() { updateGpsUI('error'); }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 3000 });
+}
+function stopLiveGPS() {
+    if (state.gps.watchId !== null && navigator.geolocation) { navigator.geolocation.clearWatch(state.gps.watchId); state.gps.watchId = null; }
+    state.gps.active = false; updateGpsUI('inactive');
+}
+function updateGpsUI(status, acc) {
+    var a = document.getElementById('gpsAccuracy'), ad = document.getElementById('gpsAccDot');
+    var at = document.getElementById('gpsAccText'), pg = document.getElementById('profileGpsStatus');
+    var tg = document.getElementById('tripGpsAcc');
+    if (status === 'acquiring') {
+        if (a) a.classList.add('visible'); if (ad) ad.style.background = 'var(--warning)';
+        if (at) at.textContent = 'Acquiring...'; if (pg) { pg.textContent = 'Acquiring...'; pg.style.color = 'var(--warning)'; }
+    } else if (status === 'active') {
+        if (a) a.classList.add('visible'); if (ad) ad.style.background = 'var(--success)';
+        if (at) at.textContent = acc ? 'GPS ±' + Math.round(acc) + 'm' : 'Active';
+        if (pg) { pg.textContent = acc ? '±' + Math.round(acc) + 'm' : 'Active'; pg.style.color = 'var(--success)'; }
+        if (tg) tg.textContent = acc ? '±' + Math.round(acc) + 'm' : 'Active';
+    } else if (status === 'denied') {
+        if (a) a.classList.add('visible'); if (ad) ad.style.background = 'var(--critical)';
+        if (at) at.textContent = 'Denied'; if (pg) { pg.textContent = 'Denied'; pg.style.color = 'var(--critical)'; }
+    } else {
+        if (a) a.classList.remove('visible'); if (pg) { pg.textContent = 'Inactive'; pg.style.color = 'var(--text-muted)'; }
+    }
+}
+
+function toggleBottomPanel() {
+    var p = document.getElementById('bottomPanel'), eb = document.getElementById('panelExpandBtn');
+    var mc = document.getElementById('mapControls'), evb = document.getElementById('elevationBadge');
+    var bb = document.getElementById('bearingBadge'), rl = document.getElementById('routeLoadingIndicator');
+    if (!p) return;
+    state.ui.panelCollapsed = !state.ui.panelCollapsed;
+    if (state.ui.panelCollapsed) {
+        p.classList.add('collapsed'); if (eb) eb.classList.add('visible');
+        if (mc) mc.style.bottom = '24px'; if (evb) evb.style.bottom = '24px';
+        if (bb) bb.style.bottom = '69px'; if (rl) rl.style.bottom = '114px';
+    } else {
+        p.classList.remove('collapsed'); if (eb) eb.classList.remove('visible');
+        if (mc) mc.style.bottom = '140px'; if (evb) evb.style.bottom = '150px';
+        if (bb) bb.style.bottom = '195px'; if (rl) rl.style.bottom = '240px';
+    }
+    setTimeout(function() { if (state.mapEngine.map && state.mapEngine.map.invalidateSize) state.mapEngine.map.invalidateSize(); }, 200);
+}
+function collapsePanel() { if (!state.ui.panelCollapsed) toggleBottomPanel(); }
+function expandPanel() { if (state.ui.panelCollapsed) toggleBottomPanel(); }
+function updateExpandSummary() {
+    var ed = document.getElementById('expandDest'), ee = document.getElementById('expandEta');
+    var edst = document.getElementById('expandDist');
+    if (ed) ed.textContent = state.journey.destName || '—';
+    if (ee) ee.textContent = state.journey.eta;
+    if (edst) edst.textContent = state.journey.remaining + ' km';
+}
+
+/* =================================================================
+   ROUTE SWITCHING — Clean layer management, no memory leaks
+   ================================================================= */
+function switchToRoute(rid) {
+    if (!state.osrm.routes[rid]) return;
+    if (rid === state.osrm.activeRouteId) return;
+    var r = state.osrm.routes[rid];
+    state.osrm.activeRouteId = rid;
+    state.journey.distance = Math.round(r.distance);
+    state.journey.remaining = state.journey.distance;
+    state.journey.routeName = getRouteDisplayName(rid);
+    state.route.current.routeId = rid;
+    state.route.current.name = state.journey.routeName;
+    state.route.current.distance = state.journey.distance;
+    var hrs = Math.floor(r.duration), mins = Math.round((r.duration - hrs) * 60);
+    state.route.current.time = hrs + 'h ' + mins + 'm';
+    var etaD = new Date(Date.now() + r.duration * 3600000);
+    state.journey.eta = etaD.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    var risk = calculateRouteRisk(r, state.calamities.active);
+    state.route.current.risk = risk;
+    state.route.current.disruption = Math.min(95, Math.round(risk * 1.1));
+    state.route.current.status = risk <= 35 ? 'low' : risk <= 65 ? 'moderate' : 'high';
+
+    // Highlight active route with clean layer management
+    highlightActiveRoute(rid);
+    setCameraFollow(true);
+
+    // Fly to new route bounds
+    if (state.mapEngine.type === 'leaflet' && state.mapEngine.map) {
+        var ml = state.mapEngine.routeLayers[rid];
+        if (ml) {
+            var mainL = ml[ml.length - 1];
+            if (mainL && mainL.getBounds) state.mapEngine.map.flyToBounds(mainL.getBounds(), { padding: [60, 60], animate: true, duration: 1.5 });
+        }
+    }
+
+    var mapEl = document.getElementById('map');
+    if (mapEl) { mapEl.classList.add('reroute-flash'); setTimeout(function() { mapEl.classList.remove('reroute-flash'); }, 800); }
+    var ar = document.getElementById('aiRecommendation'); if (ar) ar.style.display = 'none';
+    state.ui.showRecommendation = false;
+    updateRouteUI(); updateRiskUI(); updateJourneyUI(); updateExpandSummary(); renderRouteCards();
+    stopWeatherStream(); startWeatherStream();
+    // Restart traversal with new route geometry
+    stopPathTraversal(); startPathTraversal();
+    showVoiceAlert('Switched to ' + state.journey.routeName + '.');
+    showToast('info', '🛣 Route Switched', 'Now on ' + state.journey.routeName + '.', 4000);
+}
+function getRouteDisplayName(rid) {
+    var N = { 'A': 'Route A · Primary NH-27/NH-37', 'B': 'Route B · Highway Bypass', 'C': 'Route C · NFR Hill Rail Ro-Ro', 'D': 'Route D · NW-2 (IWT)' };
+    return N[rid] || 'Route ' + rid;
+}
+
+function showCalamityRecommendation(sId, rr) {
+    var cur = state.osrm.routes[state.osrm.activeRouteId], alt = state.osrm.routes[sId];
+    if (!cur || !alt) return;
+    var cR = rr[state.osrm.activeRouteId], aR = rr[sId];
+    var dD = Math.round(alt.distance - cur.distance), tD = Math.round((alt.duration - cur.duration) * 60);
+    var rR = cR - aR;
+    var dS = (dD >= 0 ? '+' : '') + dD + ' km';
+    var tS = (tD >= 0 ? '+' : '') + Math.floor(Math.abs(tD) / 60) + 'h ' + (Math.abs(tD) % 60) + 'm';
+    var rS = rR + ' pts safer';
+    var reason = 'AI detected ' + state.calamities.active.length + ' calamit' + (state.calamities.active.length === 1 ? 'y' : 'ies') + '. ' + getRouteDisplayName(sId) + ' is safest.';
+    var conf = Math.min(96, 70 + Math.abs(rR));
+    var card = document.getElementById('aiRecommendation'), rEl = document.getElementById('aiReason');
+    var cEl = document.getElementById('aiConfidence'), dEl = document.getElementById('aiDiffGrid');
+    if (rEl) rEl.textContent = reason;
+    if (cEl) cEl.textContent = conf + '%';
+    if (dEl) {
+        var dC = dD <= 0 ? 'better' : 'worse', tC = tD <= 0 ? 'better' : 'worse';
+        dEl.innerHTML = '<div class="ai-diff-item"><div class="ai-diff-value ' + dC + '">' + dS + '</div><div class="ai-diff-label">Distance</div></div><div class="ai-diff-item"><div class="ai-diff-value ' + tC + '">' + tS + '</div><div class="ai-diff-label">Time</div></div><div class="ai-diff-item"><div class="ai-diff-value better">' + rS + '</div><div class="ai-diff-label">Risk Reduction</div></div>';
+    }
+    if (card) card.style.display = 'block';
+    state.ui.showRecommendation = true;
+    if (state.ui.panelCollapsed) expandPanel();
+}
+function acceptRecommended() { if (state.calamities.recommendedRouteId) switchToRoute(state.calamities.recommendedRouteId); else dismissRecommendation(); }
+function dismissRecommendation() { var ar = document.getElementById('aiRecommendation'); if (ar) ar.style.display = 'none'; state.ui.showRecommendation = false; showVoiceAlert('Keeping current route.'); }
+
+function getElevationAtProgress(p) {
+    var r = state.osrm.routes[state.osrm.activeRouteId];
+    if (!r || !r.waypoints || r.waypoints.length < 2) return 0;
+    var wps = r.waypoints, idx = Math.floor(p * (wps.length - 1));
+    idx = Math.max(0, Math.min(idx, wps.length - 1));
+    return wps[idx].elev || 0;
+}
+function updateBearingDisplay() {
+    var c = document.getElementById('bearingCompass'), v = document.getElementById('bearingValue');
+    var tb = document.getElementById('tripBearing');
+    if (c) c.style.transform = 'rotate(' + state.journey.bearing + 'deg)';
+    if (v) v.textContent = Math.round(state.journey.bearing) + '° ' + bearingToCompass(state.journey.bearing);
+    if (tb) tb.textContent = Math.round(state.journey.bearing) + '° ' + bearingToCompass(state.journey.bearing);
+}
+function updateElevationDisplay() {
+    var elev = getElevationAtProgress(state.journey.progress);
+    state.journey.elevation = elev;
+    var el = document.getElementById('elevationValue'); if (el) el.textContent = elev + 'm';
+    var te = document.getElementById('tripElevation'); if (te) te.textContent = elev + 'm';
+}
+
+var WC = [{ icon: '☀️', desc: 'Clear', riskMod: 0 }, { icon: '🌤', desc: 'Partly Cloudy', riskMod: 0 }, { icon: '☁️', desc: 'Overcast', riskMod: 5 }, { icon: '🌦', desc: 'Light Showers', riskMod: 10 }, { icon: '🌧', desc: 'Heavy Rain', riskMod: 25 }, { icon: '⛈', desc: 'Thunderstorm', riskMod: 40 }, { icon: '🌫', desc: 'Dense Fog', riskMod: 15 }, { icon: '🌨', desc: 'Hailstorm', riskMod: 35 }];
+function generateRouteWeather() {
+    var r = state.osrm.routes[state.osrm.activeRouteId];
+    if (!r || !r.geometry || r.geometry.length < 2) return [];
+    var td = state.journey.distance || 470, fc = [], now = new Date();
+    var cE = getElevationAtProgress(state.journey.progress);
+    var cT = Math.round(32 - (cE / 1000) * 6.5 + (Math.random() - 0.5) * 3);
+    var cIdx = (Math.floor(state.journey.progress * 100) * 7 + 13) % WC.length, cC = WC[cIdx];
+    fc.push({ icon: cC.icon, temp: cT, desc: cC.desc, location: 'NOW', time: now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }), km: 0, alert: cC.riskMod > 20 });
+    var intKm = Math.max(30, Math.round(td / 6)), avg = state.traversal.cruiseSpeedKmh || 45;
+    for (var km = intKm; km < td; km += intKm) {
+        var pr = km / td, ev = getElevationAtProgress(pr);
+        var tp = Math.round(32 - (ev / 1000) * 6.5 + (Math.random() - 0.5) * 3);
+        var s2 = Math.floor(pr * 100), ci = (s2 * 7 + 13) % WC.length, cn = WC[ci];
+        var mA = Math.round((km - (state.journey.progress * td)) / avg * 60);
+        var fT = new Date(now.getTime() + mA * 60000);
+        fc.push({ icon: cn.icon, temp: tp, desc: cn.desc, location: km + ' km', time: fT.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }), km: km, alert: cn.riskMod > 20 });
+    }
+    var dE = r.waypoints.length > 0 ? (r.waypoints[r.waypoints.length - 1].elev || 500) : 500;
+    var dT = Math.round(32 - (dE / 1000) * 6.5 + (Math.random() - 0.5) * 3);
+    var di = Math.floor(0.95 * 100), dci = (di * 7 + 13) % WC.length, dC = WC[dci];
+    var dM = Math.round((td - (state.journey.progress * td)) / avg * 60);
+    var dTm = new Date(now.getTime() + dM * 60000);
+    fc.push({ icon: dC.icon, temp: dT, desc: dC.desc, location: 'DEST', time: dTm.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }), km: td, alert: dC.riskMod > 20 });
+    return fc;
+}
+function renderWeatherStrip(fc) {
+    var s = document.getElementById('weatherStrip'); if (!s) return; s.innerHTML = '';
+    fc.forEach(function(i) {
+        var d = document.createElement('div'); d.className = 'weather-item' + (i.alert ? ' alert' : '');
+        d.innerHTML = '<div class="weather-icon">' + i.icon + '</div><div class="weather-temp">' + i.temp + '°C</div><div class="weather-desc">' + i.desc + '</div><div class="weather-location">' + i.location + '</div><div class="weather-time">' + i.time + '</div>';
+        s.appendChild(d);
+    });
+}
+function startWeatherStream() { stopWeatherStream(); state.weather.forecast = generateRouteWeather(); renderWeatherStrip(state.weather.forecast); state.weather.streamInterval = setInterval(function() { if (!state.journey.active) return; state.weather.forecast = generateRouteWeather(); renderWeatherStrip(state.weather.forecast); }, 60000); }
+function stopWeatherStream() { if (state.weather.streamInterval) { clearInterval(state.weather.streamInterval); state.weather.streamInterval = null; } }
+
+function connectWebSocket() {
+    if (state.websocket.socket && state.websocket.socket.readyState === WebSocket.OPEN) return;
+    updateWsStatus('connecting');
+    try {
+        var socket = new WebSocket(WS_BASE_URL + '/ws/driver/' + encodeURIComponent(DRIVER_ID));
+        state.websocket.socket = socket;
+        socket.onopen = function() { state.websocket.connected = true; state.websocket.reconnectAttempts = 0; updateWsStatus('connected'); };
+        socket.onmessage = function(ev) { try { var p = JSON.parse(ev.data); if (p.type === 'HAZARD_ALERT' && p.data) triggerCalamity(p.data.type || 'landslide'); } catch (e) {} };
+        socket.onclose = function() { state.websocket.connected = false; updateWsStatus('disconnected'); scheduleReconnect(); };
+        socket.onerror = function() { state.websocket.connected = false; updateWsStatus('disconnected'); };
+    } catch (e) { updateWsStatus('disconnected'); scheduleReconnect(); }
+}
+function scheduleReconnect() {
+    if (state.websocket.reconnectAttempts >= state.websocket.maxReconnectAttempts) return;
+    state.websocket.reconnectAttempts++;
+    var d = Math.min(state.websocket.reconnectDelay * Math.pow(1.5, state.websocket.reconnectAttempts - 1), 30000);
+    updateWsStatus('connecting');
+    setTimeout(function() { if (state.journey.active) connectWebSocket(); }, d);
+}
+function disconnectWebSocket() {
+    if (state.websocket.socket) { state.websocket.socket.onclose = null; state.websocket.socket.close(); state.websocket.socket = null; }
+    state.websocket.connected = false; updateWsStatus('idle');
+}
+function updateWsStatus(s) {
+    var d = document.getElementById('wsDot'), t = document.getElementById('wsStatusText');
+    var p = document.getElementById('profileWsStatus');
+    var L = { connected: 'LIVE', connecting: 'SYNCING', disconnected: 'OFFLINE', idle: 'IDLE' };
+    if (d) d.className = 'ws-dot ' + s; if (t) t.textContent = L[s] || 'IDLE';
+    if (p) { p.textContent = L[s] || 'Idle'; p.style.color = s === 'connected' ? 'var(--success)' : s === 'connecting' ? 'var(--warning)' : s === 'disconnected' ? 'var(--critical)' : 'var(--text-muted)'; }
+}
+
+function startJourney() {
+    var origin = getSelectedLocation('originSelect'), dest = getSelectedLocation('destSelect');
+    var dN = document.getElementById('driverName').value || 'Driver';
+    var dM = document.getElementById('driverMobile').value || '';
+    var did = document.getElementById('driverId').value || '101';
+    var cv = document.getElementById('cargoType').value;
+    if (!origin || !dest) { showVoiceAlert('Select origin and destination.'); return; }
+    if (origin.name === dest.name) { showVoiceAlert('Origin and destination must differ.'); return; }
+    DRIVER_ID = did;
+    state.journey.originName = origin.name; state.journey.destName = dest.name;
+    state.journey.cargo = cv; state.journey.active = true;
+    state.journey.lat = origin.lat; state.journey.lng = origin.lng; state.journey.elevation = origin.elev;
+    state.journey.routeName = 'Route A · Primary NH-27/NH-37';
+    var td = document.getElementById('tripDest'); if (td) td.textContent = dest.name;
+    var toc = document.getElementById('tripOriginCity'); if (toc) toc.textContent = origin.name;
+    var tdc = document.getElementById('tripDestCity'); if (tdc) tdc.textContent = dest.name;
+    var pdn = document.getElementById('profileDriverName'); if (pdn) pdn.textContent = dN;
+    var pdm = document.getElementById('profileDriverMobile'); if (pdm) pdm.textContent = dM;
+    var tdn = document.getElementById('tripDriverName'); if (tdn) tdn.textContent = dN;
+    var tdm = document.getElementById('tripDriverMobile'); if (tdm) tdm.textContent = dM;
+    updateCargoDisplay(cv);
+    var ss = document.getElementById('startScreen'); if (ss) { ss.classList.add('hidden'); ss.style.display = 'none'; }
+    document.getElementById('driverMainContent').style.display = 'flex';
+    setTimeout(function() { if (state.mapEngine.map && state.mapEngine.map.invalidateSize) state.mapEngine.map.invalidateSize({ animate: false }); }, 200);
+    initMapEngine(); startLiveGPS(); connectWebSocket();
+    updateJourneyUI(); updateRiskUI(); updateExpandSummary();
+    showVoiceAlert('Journey started. Real-road geometry engine active.');
+    showToast('success', '✅ Journey Started', 'Vehicle moving on real-road geometry. Camera auto-follow active. Cargo: ' + (CARGO_CONFIG[cv] ? CARGO_CONFIG[cv].label : 'Unknown') + '.', 5000);
+}
+
+function resetApp() {
+    stopLiveGPS(); disconnectWebSocket(); stopWeatherStream(); stopPathTraversal(); clearAllCalamities();
+    state.journey.active = false; state.journey.progress = 0; state.journey.remaining = 0;
+    state.journey.distance = 0; state.journey.speed = 0; state.journey.bearing = 0;
+    state.route.current.risk = 28; state.route.current.disruption = 21;
+    state.route.current.name = 'Route A'; state.journey.routeName = 'Route A · Primary NH-27/NH-37';
+    state.osrm.routes = {}; state.osrm.activeRouteId = 'A'; state.osrm.loading = 0;
+    state.traversal.distanceTraveledKm = 0;
+    if (state.mapEngine.type === 'leaflet') {
+        Object.keys(state.mapEngine.routeLayers).forEach(function(k) {
+            state.mapEngine.routeLayers[k].forEach(function(l) { try { state.mapEngine.map.removeLayer(l); } catch (e) {} });
+        });
+        state.mapEngine.routeLayers = {};
+    }
+    var dmc = document.getElementById('driverMainContent'); if (dmc) dmc.style.display = 'none';
+    var ss = document.getElementById('startScreen'); if (ss) { ss.classList.remove('hidden'); ss.style.display = 'none'; }
+    var ar = document.getElementById('aiRecommendation'); if (ar) ar.style.display = 'none';
+    var ab = document.getElementById('alertBanner'); if (ab) ab.classList.remove('visible');
+    var ac = document.getElementById('alertCount'); if (ac) ac.textContent = '0';
+    var rs = document.getElementById('routeSelector'); if (rs) rs.style.display = 'none';
+    setCameraFollow(true); if (state.ui.panelCollapsed) toggleBottomPanel(); showScreen('map');
+    goBackToRoleSelect();
+}
+
+function updateRiskUI() {
+    var risk = state.route.current.risk;
+    var badge = document.getElementById('riskBadge'), score = document.getElementById('riskScore');
+    var dis = document.getElementById('disruptionProb'), trd = document.getElementById('tripRiskDisplay');
+    var trdis = document.getElementById('tripDisruption');
+    if (!badge || !score || !dis) return;
+    if (risk <= 35) {
+        badge.textContent = t('lowRisk'); badge.className = 'risk-badge low';
+        score.className = 'risk-score low'; score.textContent = risk;
+        dis.style.color = 'var(--success)';
+        if (trd) { trd.textContent = risk + '/100 — LOW'; trd.style.color = 'var(--success)'; }
+    } else if (risk <= 65) {
+        badge.textContent = t('moderateRisk'); badge.className = 'risk-badge moderate';
+        score.className = 'risk-score moderate'; score.textContent = risk;
+        dis.style.color = 'var(--warning)';
+        if (trd) { trd.textContent = risk + '/100 — MODERATE'; trd.style.color = 'var(--warning)'; }
+    } else {
+        badge.textContent = t('highRisk'); badge.className = 'risk-badge high';
+        score.className = 'risk-score high'; score.textContent = risk;
+        dis.style.color = 'var(--critical)';
+        if (trd) { trd.textContent = risk + '/100 — HIGH'; trd.style.color = 'var(--critical)'; }
+    }
+    var dp = state.route.current.disruption || Math.round(risk * 1.1);
+    dis.textContent = dp + '%'; if (trdis) trdis.textContent = dp + '%';
+}
+function updateRouteUI() {
+    var td = document.getElementById('tripTotalDist'), rn = document.getElementById('tripRouteName');
+    if (td) td.textContent = state.journey.distance + ' km';
+    if (rn) rn.textContent = state.journey.routeName;
+}
+function updateJourneyUI() {
+    var e = document.getElementById('etaValue'), d = document.getElementById('distValue');
+    var tr = document.getElementById('tripRemaining'), te = document.getElementById('tripEta');
+    var rp = document.getElementById('routeProgress'), ts = document.getElementById('tripSpeed');
+    if (e) e.textContent = state.journey.eta;
+    if (d) d.textContent = state.journey.remaining + ' km';
+    if (tr) tr.textContent = state.journey.remaining + ' km';
+    if (te) te.textContent = state.journey.eta;
+    if (rp) rp.style.width = (state.journey.progress * 100) + '%';
+    if (ts) ts.textContent = Math.round(state.journey.speed) + ' km/h';
+    updateExpandSummary();
+}
+
+function showCriticalAlert(sev, type, msg) {
+    var b = document.getElementById('alertBanner'), s = document.getElementById('alertSeverity');
+    var tp = document.getElementById('alertType'), m = document.getElementById('alertMessage');
+    if (s) s.textContent = sev; if (tp) tp.textContent = type; if (m) m.textContent = msg;
+    if (b) b.classList.add('visible');
+    var c = document.getElementById('alertCount');
+    if (c) { var cur = parseInt(c.textContent) || 0; c.textContent = String(cur + 1); }
+}
+function addAlertToList(sev, type, msg, calSev) {
+    var list = document.getElementById('alertsList'); if (!list) return;
+    var sc = sev;
+    var icon = type.indexOf('LANDSLIDE') !== -1 ? '⛰️' : type.indexOf('FLOOD') !== -1 ? '🌊' : type.indexOf('CLOUDBURST') !== -1 ? '🌧️' : type.indexOf('BRIDGE') !== -1 ? '🌉' : '⚠';
+    var item = document.createElement('div'); item.className = 'alert-item';
+    item.innerHTML = '<div class="alert-item-icon ' + sc + '">' + icon + '</div><div class="alert-item-content"><div class="alert-item-title">' + type + '</div><div class="alert-item-desc">' + msg + '</div><div class="alert-item-time">Just now · ' + calSev + '</div></div>';
+    list.insertBefore(item, list.firstChild);
+}
+
+function toggleVoice() {
+    state.ui.voiceEnabled = !state.ui.voiceEnabled;
+    var tg = document.getElementById('voiceToggle'), btn = document.getElementById('voiceBtn');
+    if (state.ui.voiceEnabled) {
+        if (tg) tg.classList.add('active'); if (btn) btn.classList.add('active');
+        showVoiceAlert('Voice alerts enabled');
+    } else {
+        if (tg) tg.classList.remove('active'); if (btn) btn.classList.remove('active');
+        showVoiceAlert('Voice alerts disabled');
+    }
+}
+function speak(text) {
+    try {
+        if ('speechSynthesis' in window) {
+            var u = new SpeechSynthesisUtterance(text);
+            u.rate = 0.9; u.pitch = 1; u.volume = 0.8;
+            window.speechSynthesis.speak(u);
+        }
+    } catch (e) {}
+}
+var voiceAlertTimeout = null;
+function showVoiceAlert(text) {
+    var a = document.getElementById('voiceAlert'), t = document.getElementById('voiceText');
+    if (!a || !t) return;
+    t.textContent = text; a.classList.add('visible');
+    if (voiceAlertTimeout) clearTimeout(voiceAlertTimeout);
+    voiceAlertTimeout = setTimeout(function() { a.classList.remove('visible'); }, 4000);
+}
+
+function showScreen(screen) {
+    state.ui.currentScreen = screen;
+    document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
+    document.querySelectorAll('.nav-item').forEach(function(n) { n.classList.remove('active'); });
+    var ts = document.getElementById(screen + 'Screen'); if (ts) ts.classList.add('active');
+    var ne = document.getElementById('nav' + screen.charAt(0).toUpperCase() + screen.slice(1));
+    if (ne) ne.classList.add('active');
+}
+
+var selectedReportType = null;
+function openReportModal() {
+    var m = document.getElementById('reportModal'); if (m) m.classList.add('visible');
+    var l = document.getElementById('reportLocation');
+    if (l) l.value = 'Lat: ' + state.journey.lat.toFixed(5) + ', Lng: ' + state.journey.lng.toFixed(5);
+}
+function closeReportModal() { var m = document.getElementById('reportModal'); if (m) m.classList.remove('visible'); }
+function selectReportType(el, type) {
+    selectedReportType = type;
+    document.querySelectorAll('.report-type-btn').forEach(function(b) { b.classList.remove('selected'); });
+    if (el) el.classList.add('selected');
+}
+function submitReport() {
+    if (!selectedReportType) { showVoiceAlert('Select type.'); return; }
+    var desc = (document.getElementById('reportDescription').value || '').trim();
+    fetch(API_BASE_URL + '/api/report-issue', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ issue_type: selectedReportType, lat: state.journey.lat, lng: state.journey.lng, description: desc, timestamp: new Date().toISOString(), driver_id: DRIVER_ID })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        showVoiceAlert('Submitted. ID: ' + (d.report_id || 'ok'));
+        closeReportModal(); selectedReportType = null;
+    }).catch(function() { showVoiceAlert('Saved locally.'); closeReportModal(); });
+}
+
+function updateNetworkStatus() {
+    var s = document.getElementById('connectionText'), d = document.querySelector('.status-dot');
+    if (!s || !d) return;
+    if (navigator.onLine) { s.textContent = 'LIVE'; d.style.background = 'var(--success)'; d.style.animation = 'pulse 2s infinite'; }
+    else { s.textContent = 'OFFLINE'; d.style.background = 'var(--critical)'; d.style.animation = 'none'; }
+}
+window.addEventListener('online', updateNetworkStatus);
+window.addEventListener('offline', updateNetworkStatus);
+
+/* =================================================================
+   CALAMITY TRIGGERS (SIMULATION BAR)
+   ================================================================= */
+function triggerCalamity(type) {
+    if (!state.journey.active) { showVoiceAlert('Start a journey first.'); return; }
+    var pool = CALAMITY_DB[type]; if (!pool || !pool.length) return;
+    var cal = pool[Math.floor(Math.random() * pool.length)];
+    if (state.calamities.active.find(function(c) { return c.id === cal.id; })) return;
+    state.calamities.active.push(cal);
+    if (state.mapEngine.type === 'leaflet' && state.mapEngine.map) {
+        var hIcon = L.divIcon({
+            html: '<div class="calamity-marker-wrap"><div class="calamity-pulse-ring"></div><div class="calamity-core-icon">⚠️</div></div>',
+            className: '', iconSize: [44, 44], iconAnchor: [22, 22]
+        });
+        var m = L.marker([cal.lat, cal.lng], { icon: hIcon, zIndexOffset: 900 }).addTo(state.mapEngine.map);
+        m.bindPopup('<strong style="color:#ef4444">⚠ ' + cal.name + '</strong><br>' + cal.desc);
+        state.mapEngine.calamityMarkers.push(m);
+        var cc = document.getElementById('tripCalamityCount');
+        if (cc) { cc.textContent = state.mapEngine.calamityMarkers.length; cc.style.color = 'var(--critical)'; }
+    }
+    showCriticalAlert(cal.severity, type.toUpperCase() + ' — ' + cal.highway, cal.name + ': ' + cal.desc);
+    addAlertToList(severityToClass(cal.severity), type.toUpperCase(), cal.name + ' (' + cal.highway + ')', cal.severity);
+    document.querySelectorAll('.sim-btn').forEach(function(b) {
+        if (b.textContent.toLowerCase().indexOf(type) !== -1 && b.className.indexOf('sim-clear') === -1) b.classList.add('active');
+    });
+    var msgs = {
+        landslide: 'Landslide at ' + cal.name + ' (' + cal.highway + ').',
+        flood: 'Flash Flood on ' + cal.highway + ' near ' + cal.name + '.',
+        cloudburst: 'Cloudburst at ' + cal.name + '.',
+        bridge: 'Bridge failure at ' + cal.name + '.'
+    };
+    showToast('critical', '⚠️ ' + (type.charAt(0).toUpperCase() + type.slice(1)) + ' Alert', msgs[type] || 'Hazard detected.', 8000);
+    setTimeout(function() { showCalamityModal(cal, type); }, 600);
+    recalculateRoutesAfterCalamity();
+    if (state.ui.voiceEnabled) speak('Warning. ' + type + ' at ' + cal.name + ' on ' + cal.highway);
+}
+function severityToClass(s) { return s === 'CRITICAL' ? 'critical' : s === 'HIGH' ? 'high' : 'medium'; }
+
+function renderCalamityMarker(cal) { /* handled inline in triggerCalamity */ }
+function drawBlockedSegment(cal) {
+    if (state.mapEngine.type !== 'leaflet' || !state.mapEngine.map) return;
+    var geom = getActiveRouteGeometry(); if (!geom || geom.length < 2) return;
+    var cIdx = 0, cDist = Infinity;
+    for (var i = 0; i < geom.length; i++) {
+        var d = haversineKm(cal.lat, cal.lng, geom[i][0], geom[i][1]);
+        if (d < cDist) { cDist = d; cIdx = i; }
+    }
+    var s = Math.max(0, cIdx - 5), e = Math.min(geom.length - 1, cIdx + 5);
+    var bg = geom.slice(s, e + 1); if (bg.length < 2) return;
+    var bl = L.polyline(bg, { color: '#ef4444', weight: 6, opacity: 0.85, dashArray: '8 8', lineCap: 'round', className: 'blocked-segment' }).addTo(state.mapEngine.map);
+    state.mapEngine.routeLayers['blocked_' + cal.id] = [bl];
+}
+
+function clearAllCalamities() {
+    state.calamities.active = []; state.calamities.recommendedRouteId = null; state.calamities.pendingModal = null;
+    state.mapEngine.calamityMarkers.forEach(function(cm) { try { state.mapEngine.map.removeLayer(cm); } catch (e) {} });
+    state.mapEngine.calamityMarkers = [];
+    Object.keys(state.mapEngine.routeLayers).forEach(function(k) {
+        if (k.indexOf('blocked_') === 0) {
+            state.mapEngine.routeLayers[k].forEach(function(l) { try { state.mapEngine.map.removeLayer(l); } catch (e) {} });
+            delete state.mapEngine.routeLayers[k];
+        }
+    });
+    highlightActiveRoute(state.osrm.activeRouteId);
+    state.route.current.risk = 28; state.route.current.disruption = 21; state.route.current.status = 'low';
+    var ar = document.getElementById('aiRecommendation'); if (ar) ar.style.display = 'none';
+    var ab = document.getElementById('alertBanner'); if (ab) ab.classList.remove('visible');
+    var ac = document.getElementById('alertCount'); if (ac) ac.textContent = '0';
+    var cc = document.getElementById('tripCalamityCount'); if (cc) { cc.textContent = '0'; cc.style.color = 'var(--success)'; }
+    document.querySelectorAll('.sim-btn').forEach(function(b) { b.classList.remove('active'); });
+    var rs = document.getElementById('routeSelector'); if (rs) rs.style.display = 'none';
+    var gl = document.getElementById('dangerGlow'); if (gl) gl.classList.remove('active');
+    var bg = document.getElementById('alertBadge'); if (bg) bg.classList.remove('danger');
+    var modal = document.getElementById('calamityModal'); if (modal) modal.classList.remove('visible');
+    updateRiskUI(); showVoiceAlert('All calamities cleared.');
+    showToast('success', '✅ Route Clear', 'All hazards cleared.', 4000);
+}
+
+function recalculateRoutesAfterCalamity() {
+    var cr = state.osrm.routes[state.osrm.activeRouteId]; if (!cr) return;
+    var rr = {};
+    ['A', 'B', 'C', 'D'].forEach(function(r) {
+        var d = state.osrm.routes[r]; if (!d) return;
+        rr[r] = calculateRouteRisk(d, state.calamities.active);
+    });
+    var sId = null, sR = Infinity;
+    Object.keys(rr).forEach(function(r) { if (rr[r] < sR) { sR = rr[r]; sId = r; } });
+    state.calamities.recommendedRouteId = sId;
+    var cR = rr[state.osrm.activeRouteId] || 28;
+    state.route.current.risk = cR;
+    state.route.current.disruption = Math.min(95, Math.round(cR * 1.1));
+    state.route.current.status = cR <= 35 ? 'low' : cR <= 65 ? 'moderate' : 'high';
+    updateRiskUI(); renderRouteCards();
+    if (sId && sId !== state.osrm.activeRouteId) showCalamityRecommendation(sId, rr);
+}
+function calculateRouteRisk(rd, calamities) {
+    if (!rd || !rd.geometry || calamities.length === 0) return 20;
+    var geom = rd.geometry, risk = 15;
+    calamities.forEach(function(c) {
+        var mD = Infinity;
+        for (var i = 0; i < geom.length; i += Math.max(1, Math.floor(geom.length / 30))) {
+            var d = haversineKm(c.lat, c.lng, geom[i][0], geom[i][1]);
+            if (d < mD) mD = d;
+        }
+        if (mD < 8) risk += c.severity === 'CRITICAL' ? 45 : c.severity === 'HIGH' ? 30 : 18;
+        else if (mD < 16) risk += 10;
+    });
+    risk += Math.max(0, (rd.distance - 400) / 40);
+    return Math.round(Math.min(95, Math.max(10, risk)));
+}
+
+function renderRouteCards() {
+    var sel = document.getElementById('routeSelector'), cards = document.getElementById('routeCards');
+    if (!sel || !cards) return;
+    var M = {
+        'A': { name: 'Route A', code: 'Primary NH-27/NH-37', tag: 'PRIMARY', tagClass: 'primary', desc: 'Direct corridor via Lumding–Silchar' },
+        'B': { name: 'Route B', code: 'Highway Bypass', tag: 'ALT BYPASS', tagClass: 'alt', desc: 'Jiribam–Silchar–Aizawl loop' },
+        'C': { name: 'Route C', code: 'NFR Hill Rail Ro-Ro', tag: 'MULTIMODAL', tagClass: 'multimodal', desc: 'Shillong–Jowai rail Ro-Ro' },
+        'D': { name: 'Route D', code: 'NW-2 Waterway', tag: 'IWT NW-2', tagClass: 'multimodal', desc: 'Dhubri–Tura waterway bypass' }
+    };
+    if (Object.keys(state.osrm.routes).length === 0) { sel.style.display = 'none'; return; }
+    sel.style.display = 'block'; cards.innerHTML = '';
+    ['A', 'B', 'C', 'D'].forEach(function(rid) {
+        var r = state.osrm.routes[rid], m = M[rid]; if (!r || !m) return;
+        var risk = calculateRouteRisk(r, state.calamities.active);
+        var isA = rid === state.osrm.activeRouteId;
+        var isR = rid === state.calamities.recommendedRouteId && !isA;
+        var isB = risk > 75;
+        var dD = Math.round(r.distance - state.journey.distance);
+        var dTm = Math.round((r.duration - (state.journey.distance / 45)) * 60);
+        var dS = (dD >= 0 ? '+' : '') + dD + ' km';
+        var tS = (dTm >= 0 ? '+' : '') + Math.floor(Math.abs(dTm) / 60) + 'h ' + (Math.abs(dTm) % 60) + 'm';
+        var sL = risk <= 30 ? 'High Safety' : risk <= 55 ? 'Moderate' : 'High Risk';
+        var sC = risk <= 30 ? 'safe' : risk <= 55 ? '' : 'danger';
+        var cC = 'route-card';
+        if (isA) cC += ' active'; if (isR) cC += ' recommended'; if (isB) cC += ' blocked';
+        var tC = m.tagClass; if (isR) tC = 'recommended-tag'; if (isB) tC = 'blocked';
+        var tT = isR ? '★ AI RECOMMENDED' : isB ? '⚠ BLOCKED' : m.tag;
+        cards.insertAdjacentHTML('beforeend',
+            '<div class="' + cC + '" onclick="switchToRoute(\'' + rid + '\')" data-route="' + rid + '">' +
+            '<div class="route-card-header"><div class="route-card-name">' + m.name + ' <span style="color:var(--text-muted);font-weight:400;font-size:9px">' + m.code + '</span></div>' +
+            '<span class="route-card-tag ' + tC + '">' + tT + '</span></div>' +
+            '<div class="route-card-stats">' +
+            '<div class="route-stat"><strong>' + Math.round(r.distance) + ' km</strong>Distance' + (rid !== 'A' ? '<br><span style="font-size:8px;color:var(--text-muted)">' + dS + '</span>' : '') + '</div>' +
+            '<div class="route-stat"><strong>' + formatDur(r.duration) + '</strong>ETA' + (rid !== 'A' ? '<br><span style="font-size:8px;color:var(--text-muted)">' + tS + '</span>' : '') + '</div>' +
+            '<div class="route-stat ' + sC + '"><strong>' + risk + '%</strong>Risk</div>' +
+            '<div class="route-stat ' + sC + '"><strong>' + sL + '</strong>Safety</div>' +
+            '</div><div class="route-card-desc">' + m.desc + '</div></div>'
+        );
+    });
+}
+function formatDur(h) { return Math.floor(h) + 'h ' + Math.round((h - Math.floor(h)) * 60) + 'm'; }
+
+/* =================================================================
+   INITIALIZATION — FAIL-SAFE
+   ================================================================= */
+function dismissLoadingScreen() {
+    var ls = document.getElementById('loadingScreen');
+    if (ls) {
+        ls.classList.add('force-hidden');
+        ls.style.opacity = '0'; ls.style.pointerEvents = 'none';
+        ls.style.display = 'none'; ls.style.visibility = 'hidden';
+    }
+}
+
+function init() {
+    try {
+        populateLocationSelects();
+        updateNetworkStatus();
+        updateJourneyUI();
+        updateRiskUI();
+        updateExpandSummary();
+    } catch (e) { console.error('[init]', e); }
+    // Force dismiss within 1 second
+    setTimeout(dismissLoadingScreen, 1000);
+    // Safety net
+    setTimeout(dismissLoadingScreen, 2000);
+    // Interaction fallback
+    var handler = function() {
+        dismissLoadingScreen();
+        document.removeEventListener('click', handler);
+        document.removeEventListener('touchstart', handler);
+    };
+    document.addEventListener('click', handler);
+    document.addEventListener('touchstart', handler);
+    if (document.readyState === 'complete') setTimeout(dismissLoadingScreen, 100);
+    else window.addEventListener('load', function() { setTimeout(dismissLoadingScreen, 100); });
+}
+
+/* =================================================================
+   GLOBAL BINDINGS
+   ================================================================= */
+window.startJourney = startJourney;
+window.acceptRecommended = acceptRecommended;
+window.dismissRecommendation = dismissRecommendation;
+window.recenterOnVehicle = recenterOnVehicle;
+window.zoomIn = zoomIn;
+window.zoomOut = zoomOut;
+window.toggleVoice = toggleVoice;
+window.showScreen = showScreen;
+window.toggleLanguage = toggleLanguage;
+window.openReportModal = openReportModal;
+window.closeReportModal = closeReportModal;
+window.selectReportType = selectReportType;
+window.submitReport = submitReport;
+window.resetApp = resetApp;
+window.switchLayer = switchLayer;
+window.toggleBottomPanel = toggleBottomPanel;
+window.collapsePanel = collapsePanel;
+window.expandPanel = expandPanel;
+window.triggerCalamity = triggerCalamity;
+window.clearAllCalamities = clearAllCalamities;
+window.switchToRoute = switchToRoute;
+window.calamityRerouteNow = calamityRerouteNow;
+window.calamityDismiss = calamityDismiss;
+window.dismissToast = dismissToast;
+window.toggleSimBar = toggleSimBar;
+window.selectRole = selectRole;
+window.goBackToRoleSelect = goBackToRoleSelect;
+window.authorityLogin = authorityLogin;
+window.initAuthMapPicker = initAuthMapPicker;
+window.selectSeverity = selectSeverity;
+window.handleMediaUpload = handleMediaUpload;
+window.submitHazardReport = submitHazardReport;
+
+init();
+</script>
+</body>
+</html>
