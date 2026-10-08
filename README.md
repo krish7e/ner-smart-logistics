@@ -10,6 +10,21 @@
 **Project:** NER Smart Logistics  
 **Module:** Driver & Officer Field Application
 
+### Team Members
+
+**Team Leader:** Medhansh Garg
+
+**Team Member:** Krish Bharti
+
+**Team Member:** Prateek Sangwan
+
+**Team Member:** Vivaan Tamrakar
+
+**Team Member:** Mayank Aggarwal
+
+**Team Member:** Kumkum Thakur
+
+
 ---
 
 # 🌏 About the App
@@ -841,3 +856,6 @@ Operational deployment would require integration with verified road, weather, in
 ### **Plan Smarter. Move Safer. Stay Connected.**
 
 **Smart India Hackathon 2026 — SIH26002**
+## Prototype Video Link - https://youtu.be/EKm7xaS8Lfs
+## Command Center repository link - https://github.com/medh07/ner-smart-logistics-system
+
